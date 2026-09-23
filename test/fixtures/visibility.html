@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>visibility</title>
+    <style>
+      body { margin: 0; padding: 16px; font-family: sans-serif; }
+      .gone { display: none; }
+      .ghost { visibility: hidden; padding: 8px; }
+      .ghost .seen { visibility: visible; }
+      .all-hidden { visibility: hidden; }
+      .menu { opacity: 0; }
+      .parked { position: absolute; left: -9999px; top: 0; width: 200px; }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+      .lazy { content-visibility: auto; contain-intrinsic-size: auto 400px; margin-top: 3000px; }
+      .window { position: relative; width: 200px; height: 60px; overflow: hidden; }
+      .window .outside { position: absolute; left: 260px; top: 0; width: 100px; }
+      .anchor { position: relative; width: 0; height: 0; }
+      .anchor .badge { position: absolute; left: 0; top: 0; width: 60px; height: 20px; background: #fdd; }
+    </style>
+  </head>
+  <body>
+    <p class="plain">Plain shown paragraph</p>
+    <div class="gone"><p>Not rendered at all</p></div>
+    <div class="ghost"><span class="seen">Visible child</span><span>hidden sibling</span></div>
+    <div class="all-hidden"><span>one</span><span>two</span></div>
+    <ul class="menu"><li>Profile</li><li>Settings</li><li>Sign out</li></ul>
+    <div class="parked">Parked off screen</div>
+    <span class="sr-only">Screen reader text</span>
+    <div class="window"><div class="outside">Moved outside</div><div class="inside">Inside</div></div>
+    <div class="anchor"><span class="badge">New</span></div>
+    <details><summary>More</summary><p class="collapsed">Collapsed text</p></details>
+    <section class="lazy"><p>Below the fold</p></section>
+  </body>
+</html>

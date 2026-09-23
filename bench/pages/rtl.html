@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة التحكم - متجر النخلة</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Noto Sans Arabic", Tahoma, sans-serif;
+    font-size: 15px;
+    color: #1e2430;
+    background: #f5f6f8;
+  }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    width: 240px;
+    padding: 24px 16px;
+    background: #16302b;
+    color: #e6f0ec;
+  }
+  .sidebar h2 { margin: 0 0 24px; font-size: 20px; }
+  .sidebar a {
+    display: block;
+    padding: 10px 12px;
+    color: inherit;
+    text-decoration: none;
+    border-radius: 6px;
+  }
+  .sidebar a.active { background: #22463f; }
+  .main { margin-left: 240px; }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 24px;
+    background: #fff;
+    border-bottom: 1px solid #e3e6ea;
+  }
+  .topbar h1 { margin: 0; font-size: 20px; }
+  .topbar-tools { display: flex; align-items: center; gap: 4px; }
+  .icon {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .account { position: relative; margin-inline-start: 16px; }
+  .account-button {
+    padding: 8px 12px;
+    border: 1px solid #d8dce2;
+    border-radius: 8px;
+    background: #fff;
+    font: inherit;
+  }
+  .account-menu {
+    display: none;
+    position: absolute;
+    top: 44px;
+    right: 0;
+    width: 220px;
+    padding: 6px;
+    margin: 0;
+    list-style: none;
+    background: #fff;
+    border: 1px solid #e3e6ea;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  }
+  .account.open .account-menu { display: block; }
+  .account-menu a { display: block; padding: 10px 12px; color: inherit; text-decoration: none; }
+  .content { padding: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px 20px;
+    border: 1px solid #e3e6ea;
+  }
+  .card .label { color: #5b6472; font-size: 13px; }
+  .card .value { font-size: 26px; font-weight: 700; margin-top: 6px; }
+  .orders { margin-top: 24px; background: #fff; border-radius: 10px; border: 1px solid #e3e6ea; }
+  .orders h3 { margin: 0; padding: 16px 20px; border-bottom: 1px solid #eef0f3; }
+  .orders li {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid #f1f2f4;
+  }
+  .orders ul { list-style: none; margin: 0; padding: 0; }
+  .drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    inset-inline-start: 0;
+    width: 300px;
+    padding: 24px;
+    background: #fff;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.2);
+    transform: translateX(-100%);
+    transition: transform 0.2s;
+    z-index: 10;
+  }
+  .drawer.open { transform: none; }
+  .drawer h3 { margin: 0 0 16px; }
+  .drawer label { display: block; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+  <nav class="sidebar">
+    <h2>متجر النخلة</h2>
+    <a class="active" href="#">الرئيسية</a>
+    <a href="#">الطلبات</a>
+    <a href="#">المنتجات</a>
+    <a href="#">العملاء</a>
+    <a href="#">التقارير</a>
+    <a href="#">الإعدادات</a>
+  </nav>
+
+  <div class="main">
+    <header class="topbar">
+      <h1>نظرة عامة</h1>
+      <div class="topbar-tools">
+        <button class="icon" title="الإشعارات">&#128276;</button>
+        <button class="icon" title="المساعدة">?</button>
+        <button class="icon" title="البحث">&#128269;</button>
+        <div class="account" id="account">
+          <button class="account-button" type="button" id="account-button">سارة أحمد</button>
+          <ul class="account-menu">
+            <li><a href="#">الملف الشخصي</a></li>
+            <li><a href="#">الفواتير</a></li>
+            <li><a href="#">تسجيل الخروج</a></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <section class="content">
+      <div class="cards">
+        <div class="card"><div class="label">مبيعات اليوم</div><div class="value">٤٬٢٠٠ ر.س</div></div>
+        <div class="card"><div class="label">طلبات جديدة</div><div class="value">٣٨</div></div>
+        <div class="card"><div class="label">عملاء جدد</div><div class="value">١٢</div></div>
+      </div>
+
+      <div class="orders">
+        <h3>أحدث الطلبات</h3>
+        <ul>
+          <li><span>طلب رقم ١٠٤٢ - محمد العتيبي</span><span>٣٥٠ ر.س</span></li>
+          <li><span>طلب رقم ١٠٤١ - نورة القحطاني</span><span>١٢٠ ر.س</span></li>
+          <li><span>طلب رقم ١٠٤٠ - خالد الشمري</span><span>٨٩٠ ر.س</span></li>
+          <li><span>طلب رقم ١٠٣٩ - ريم الدوسري</span><span>٢٤٠ ر.س</span></li>
+        </ul>
+      </div>
+    </section>
+  </div>
+
+  <aside class="drawer" id="filters">
+    <h3>تصفية الطلبات</h3>
+    <label><input type="checkbox"> قيد التجهيز</label>
+    <label><input type="checkbox"> تم الشحن</label>
+    <label><input type="checkbox"> ملغي</label>
+  </aside>
+
+  <script>
+    document.getElementById('account-button').addEventListener('click', () => {
+      document.getElementById('account').classList.toggle('open');
+    });
+  </script>
+</body>
+</html>

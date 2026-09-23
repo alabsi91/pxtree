@@ -1,0 +1,39 @@
+{
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": [
+    {
+      "kind": "uneven list spacing",
+      "selector": ".side-nav li.active",
+      "run": "default",
+      "match": ["between", "side-nav"],
+      "amended": "grammar rename during the run: uneven gaps became gaps ... between X",
+      "note": "the active item gets a 12px margin while the others are 4px apart"
+    },
+    {
+      "kind": "sibling misalignment",
+      "selector": ".stat.alert",
+      "run": "default",
+      "match": ["across siblings", "stat"],
+      "amended": "grammar rename during the run: cousins misaligned became X tops a..b across siblings",
+      "note": "the Refunds card sits 6px lower than the other three"
+    },
+    {
+      "kind": "off-center",
+      "selector": ".empty-body",
+      "run": "default",
+      "match": ["off center", "empty"],
+      "amended": "grammar rename during the run: off-center-block became off center",
+      "note": "a 48px top margin pushes the centered empty state 24px down"
+    },
+    {
+      "kind": "responsive rule breaks at 390",
+      "selector": ".stats",
+      "run": "mobile",
+      "match": ["past viewport", "stat"],
+      "note": "the max-width 420 rule forces three columns, the nowrap values widen them past the screen"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>scroll container</title>
+    <style>
+      body { margin: 0; padding: 16px; font-family: sans-serif; }
+      ul.list { height: 300px; overflow-y: auto; margin: 0; padding: 9px 0; list-style: none; box-sizing: border-box; }
+      ul.list li { height: 22px; font-size: 14px; line-height: 22px; }
+      .barely { height: 100px; overflow: auto; margin-top: 16px; }
+      .barely div { height: 103px; }
+      .hidden-box { width: 200px; height: 40px; overflow: hidden; margin-top: 16px; }
+      .hidden-box span { display: block; white-space: nowrap; width: 400px; }
+    </style>
+  </head>
+  <body>
+    <ul class="list"></ul>
+    <div class="barely"><div>content three pixels too tall</div></div>
+    <div class="hidden-box"><span>a long line that runs past the right edge of its box</span></div>
+    <script>
+      const list = document.querySelector('ul.list');
+      for (let itemNumber = 1; itemNumber <= 25; itemNumber++) {
+        const item = document.createElement('li');
+        item.textContent = 'Item ' + itemNumber;
+        list.append(item);
+      }
+    </script>
+  </body>
+</html>

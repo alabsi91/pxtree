@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Standup - Async updates for remote teams</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    color: #111827;
+    background: #ffffff;
+  }
+  .wrap {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+  }
+  .nav strong { font-size: 20px; }
+  .nav a { color: #111827; text-decoration: none; }
+  .bleed {
+    position: relative;
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    height: 420px;
+    overflow: hidden;
+    background: #1e293b;
+  }
+  .bleed img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0.5;
+  }
+  .bleed-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 24px;
+    color: #fff;
+  }
+  .bleed-text h1 { font-size: 52px; line-height: 1.1; margin: 0 0 12px; max-width: 620px; }
+  .bleed-text p { font-size: 20px; margin: 0; max-width: 520px; }
+  .proof {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 32px 0;
+  }
+  .avatars { display: flex; }
+  .avatars img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+  }
+  .avatars img + img { margin-left: -12px; }
+  .proof p { margin: 0; color: #374151; }
+  .feature {
+    position: relative;
+    padding: 48px 0 96px;
+  }
+  .blob {
+    position: absolute;
+    top: 20px;
+    left: -60px;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fde68a 0%, rgba(253, 230, 138, 0) 70%);
+    pointer-events: none;
+  }
+  .feature h2 { position: relative; font-size: 34px; margin: 0 0 12px; max-width: 560px; }
+  .feature p { position: relative; font-size: 18px; line-height: 1.6; color: #374151; max-width: 620px; margin: 0; }
+  .signup {
+    display: inline-block;
+    margin-top: 24px;
+    padding: 14px 24px;
+    border-radius: 10px;
+    background: #111827;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  @media (max-width: 640px) {
+    .bleed-text h1 { font-size: 34px; }
+    .bleed-text p { font-size: 17px; }
+    .proof { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="nav">
+      <strong>Standup</strong>
+      <a href="#">Sign in</a>
+    </header>
+
+    <section class="bleed">
+      <img src="img/hero-background.png" alt="">
+      <div class="bleed-text">
+        <h1>Skip the meeting, keep the standup</h1>
+        <p>Your team posts a two minute update when it suits them. Everyone reads it with their first coffee.</p>
+      </div>
+    </section>
+
+    <div class="proof">
+      <div class="avatars" aria-hidden="true">
+        <img src="img/avatar.png" alt="">
+        <img src="img/avatar.png" alt="">
+        <img src="img/avatar.png" alt="">
+        <img src="img/avatar.png" alt="">
+        <img src="img/avatar.png" alt="">
+      </div>
+      <p>Used by 4,000 remote teams, from two people to two hundred.</p>
+    </div>
+
+    <section class="feature">
+      <div class="blob" aria-hidden="true"></div>
+      <h2>Updates people actually read</h2>
+      <p>Standup collects each person's update, groups blockers at the top and sends one short digest. No threads to scroll, no status meeting to sit through.</p>
+      <a class="signup" href="#">Try it free for 14 days</a>
+    </section>
+  </div>
+</body>
+</html>

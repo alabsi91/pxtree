@@ -1,0 +1,38 @@
+{
+  "runs": {
+    "default": []
+  },
+  "bugs": [
+    {
+      "kind": "sibling misalignment",
+      "selector": ".add-to-cart",
+      "run": "default",
+      "match": ["across siblings", "add-to-cart"],
+      "amended": "grammar rename during the run: cousins misaligned became X tops a..b across siblings",
+      "note": "descriptions differ in length and the button is not pushed to the card bottom"
+    },
+    {
+      "kind": "image distorted",
+      "selector": ".product img",
+      "run": "default",
+      "match": ["image aspect", "img"],
+      "amended": "grammar rename during the run: image distorted became image aspect N of natural",
+      "note": "a 320x180 photo forced into 100% x 120px without object-fit"
+    },
+    {
+      "kind": "clipped by overflow hidden",
+      "selector": ".name",
+      "run": "default",
+      "match": [["clipped", "name"], ["text cut", "name"]],
+      "amended": "the guide's grammar uses text cut when a box clips its own text, clipped by X only for an ancestor",
+      "note": "the title box is two lines tall with overflow hidden, the Studio Reference title needs four"
+    },
+    {
+      "kind": "tap target",
+      "selector": ".icon-btn",
+      "run": "default",
+      "match": ["small target", "icon-btn"],
+      "note": "20px wishlist and compare buttons 4px apart"
+    }
+  ]
+}

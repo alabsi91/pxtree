@@ -1,0 +1,33 @@
+{
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"],
+    "menu": ["--script", "await page.hover('text=Products')", "--wait", "300"]
+  },
+  "bugs": [
+    {
+      "kind": "uneven list spacing",
+      "selector": ".nav-links > li.new",
+      "run": "default",
+      "match": ["between", "nav-links"],
+      "amended": "grammar rename during the run: uneven gaps became gaps ... between X",
+      "note": "the Changelog item has a 44px margin, the rest 28px"
+    },
+    {
+      "kind": "clipped by overflow hidden",
+      "selector": ".menu",
+      "run": "menu",
+      "match": ["clipped", "ul.menu"],
+      "amended": "made stricter: clipped + site-header also matched unrelated 1px clips of every nav link",
+      "note": "the header has overflow hidden for its rounded corners, the dropdown opens below it and is cut"
+    },
+    {
+      "kind": "overflow at 390",
+      "selector": ".nav-links",
+      "run": "mobile",
+      "match": ["clipped out", "site-header"],
+      "amended": "made stricter: clipped + site-header also matched unrelated 1px clips of every nav link",
+      "note": "six nowrap links and no mobile rule, the header's overflow hidden cuts the last ones off"
+    }
+  ]
+}

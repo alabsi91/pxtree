@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>images</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: sans-serif;
+        font-size: 16px;
+        line-height: 24px;
+      }
+
+      img {
+        display: block;
+        margin-bottom: 16px;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 4px;
+      }
+
+      .icon-link,
+      .spaced-link {
+        display: block;
+        width: 16px;
+        height: 16px;
+        background: #1f2937;
+      }
+
+      .spaced-toolbar {
+        padding: 24px;
+      }
+
+      .big-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+      }
+
+      .tiny-label {
+        font-size: 12px;
+        line-height: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <img class="broken" src="data:image/png;base64,AAAA" width="40" height="40" alt="" />
+    <img
+      class="stretched"
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAAiElEQVR4nO3VQQ0AIBAEMeQgEYnIwsJ9yHyaoKCZPdY+1xsKLFJzAViw/twWZcFSVv4XmSEsZZlhT+BmwVJWTmCGsJSVE5ghLGXlBGYIS1k5gRnCUlZOYIawlJUTmCEsZeUEZghLWTmBGcJSVk5ghrCUlROYISxl5QRmCEtZOYEZwlLWrgnm7wGiP3jWhLaBBwAAAABJRU5ErkJggg=="
+      width="50"
+      height="50"
+      alt=""
+    />
+    <img
+      class="upscaled"
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAAAyCAIAAAAlV+npAAAAiElEQVR4nO3VQQ0AIBAEMeQgEYnIwsJ9yHyaoKCZPdY+1xsKLFJzAViw/twWZcFSVv4XmSEsZZlhT+BmwVJWTmCGsJSVE5ghLGXlBGYIS1k5gRnCUlZOYIawlJUTmCEsZeUEZghLWTmBGcJSVk5ghrCUlROYISxl5QRmCEtZOYEZwlLWrgnm7wGiP3jWhLaBBwAAAABJRU5ErkJggg=="
+      width="200"
+      height="100"
+      alt=""
+    />
+    <img
+      class="vector"
+      src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Crect width='10' height='10' fill='%23f59e0b'/%3E%3C/svg%3E"
+      width="100"
+      height="100"
+      alt=""
+    />
+    <div class="toolbar">
+      <a class="icon-link" href="#settings" aria-label="Settings"></a>
+      <a class="icon-link" href="#help" aria-label="Help"></a>
+    </div>
+    <div class="spaced-toolbar"><a class="spaced-link" href="#alone" aria-label="Alone"></a></div>
+    <p class="inline-text">Read the <a href="#docs">docs</a> before you start.</p>
+    <label class="big-label"><input class="agree" type="checkbox" /> I agree to the terms</label>
+    <input class="plan-a" id="plan-a" type="radio" name="plan" /><label class="big-label" for="plan-a">Plan A</label>
+    <label class="tiny-label"><input class="tiny" type="checkbox" /><input class="tiny-neighbor" type="checkbox" /> tiny</label>
+  </body>
+</html>

@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoices - Quarry</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    color: #1f2937;
+    background: #fff;
+  }
+  .page { max-width: 1160px; margin: 0 auto; padding: 32px 24px; }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .head h1 { margin: 0; font-size: 24px; }
+  .filters { display: flex; gap: 8px; }
+  .filters select, .filters input {
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font: inherit;
+  }
+  table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+  }
+  thead th {
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #9a9a9a;
+    background: #f3f4f6;
+    padding: 10px 12px;
+  }
+  tbody td {
+    padding: 12px;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+  }
+  td.amount { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill {
+    display: inline-block;
+    width: 88px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .pill.paid { background: #dcfce7; color: #166534; }
+  .pill.overdue { background: #fee2e2; color: #991b1b; }
+  .pill.waiting { background: #fef3c7; color: #92400e; }
+  .row-actions { display: flex; gap: 4px; }
+  .row-action {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: 13px;
+    line-height: 1;
+    color: #6b7280;
+  }
+  .pager {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+    color: #4b5563;
+  }
+  .pager button {
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    border-radius: 6px;
+    font: inherit;
+  }
+  @media (max-width: 640px) {
+    .page { padding: 20px 16px; }
+    .head { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="head">
+      <h1>Invoices</h1>
+      <div class="filters">
+        <select><option>All statuses</option><option>Paid</option><option>Overdue</option></select>
+        <input type="search" placeholder="Search client">
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Number</th>
+          <th>Client</th>
+          <th>Issued</th>
+          <th>Status</th>
+          <th>Amount</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>INV-1042</td>
+          <td>Brightline Studio</td>
+          <td>Sep 02, 2026</td>
+          <td><span class="pill paid">Paid</span></td>
+          <td class="amount">$4,200.00</td>
+          <td><div class="row-actions"><button class="row-action" title="View">&#128065;</button><button class="row-action" title="Download">&#8595;</button><button class="row-action" title="Delete">&#10005;</button></div></td>
+        </tr>
+        <tr>
+          <td>INV-1043</td>
+          <td>Oak &amp; Anchor</td>
+          <td>Sep 05, 2026</td>
+          <td><span class="pill waiting">Awaiting payment</span></td>
+          <td class="amount">$1,150.00</td>
+          <td><div class="row-actions"><button class="row-action" title="View">&#128065;</button><button class="row-action" title="Download">&#8595;</button><button class="row-action" title="Delete">&#10005;</button></div></td>
+        </tr>
+        <tr>
+          <td>INV-1044</td>
+          <td>Meridian Health Partners</td>
+          <td>Sep 09, 2026</td>
+          <td><span class="pill overdue">Overdue</span></td>
+          <td class="amount">$12,980.00</td>
+          <td><div class="row-actions"><button class="row-action" title="View">&#128065;</button><button class="row-action" title="Download">&#8595;</button><button class="row-action" title="Delete">&#10005;</button></div></td>
+        </tr>
+        <tr>
+          <td>INV-1045</td>
+          <td>Kite Labs</td>
+          <td>Sep 12, 2026</td>
+          <td><span class="pill paid">Paid</span></td>
+          <td class="amount">$640.00</td>
+          <td><div class="row-actions"><button class="row-action" title="View">&#128065;</button><button class="row-action" title="Download">&#8595;</button><button class="row-action" title="Delete">&#10005;</button></div></td>
+        </tr>
+        <tr>
+          <td>INV-1046</td>
+          <td>North Fork Coffee</td>
+          <td>Sep 15, 2026</td>
+          <td><span class="pill waiting">Awaiting payment</span></td>
+          <td class="amount">$385.50</td>
+          <td><div class="row-actions"><button class="row-action" title="View">&#128065;</button><button class="row-action" title="Download">&#8595;</button><button class="row-action" title="Delete">&#10005;</button></div></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pager">
+      <span>Showing 1 to 5 of 48</span>
+      <div>
+        <button type="button">Previous</button>
+        <button type="button">Next</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

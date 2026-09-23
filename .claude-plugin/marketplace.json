@@ -1,0 +1,6 @@
+{
+  "name": "pxtree",
+  "owner": { "name": "alabsi91" },
+  "metadata": { "description": "Measures how a webpage actually renders and prints it as compact text for AI coding agents" },
+  "plugins": [{ "name": "pxtree", "source": "./", "description": "Measure rendered webpages" }]
+}

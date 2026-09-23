@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>contrast</title>
+    <style>
+      html { color-scheme: light dark; }
+      body { margin: 0; padding: 16px; font-family: sans-serif; }
+      .panel { background: #ffffff; padding: 8px; }
+      p.meta { color: #9ca3af; margin: 0; }
+      .hero { background: linear-gradient(90deg, #123456, #654321); padding: 8px; }
+      .hero p { color: #ffffff; margin: 0; }
+      .dark { background: #000000; padding: 8px; }
+      .dark p.faint { color: rgba(255, 255, 255, 0.5); margin: 0; }
+      .dark .half { opacity: 0.5; }
+      .dark .half p { color: #ffffff; margin: 0; }
+      .far { margin-top: 2000px; background: #f0f0f0; padding: 8px; }
+      .far p { color: #333333; margin: 0; }
+      .bare { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="panel"><p class="meta">Gray text on white</p></div>
+    <div class="hero"><p class="on-gradient">White text on a gradient</p></div>
+    <div class="dark">
+      <p class="faint">Translucent white on black</p>
+      <div class="half"><p class="dimmed">White in a half-opacity box</p></div>
+    </div>
+    <p class="bare">Text on the page canvas</p>
+    <div class="far"><p class="below">Below the fold on light gray</p></div>
+  </body>
+</html>

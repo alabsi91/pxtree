@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tally - Invoicing for studios</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Inter", system-ui, sans-serif;
+    color: #0f172a;
+    background: #fff;
+  }
+  .container {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 64px;
+  }
+  .nav .brand { font-weight: 800; font-size: 20px; }
+  .nav a { color: #0f172a; text-decoration: none; margin-left: 20px; }
+  .hero {
+    position: relative;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    height: 480px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+  .hero img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .hero-inner {
+    position: relative;
+    max-width: 1120px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .hero h1 { font-size: 56px; line-height: 1.1; margin: 0 0 16px; max-width: 640px; }
+  .hero p { font-size: 20px; max-width: 520px; margin: 0 0 28px; }
+  .cta {
+    display: inline-block;
+    height: 48px;
+    padding: 0 24px;
+    line-height: 20px;
+    border-radius: 8px;
+    background: #facc15;
+    color: #0f172a;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .logos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    padding: 28px 0;
+  }
+  .logo-item {
+    width: 72px;
+    height: 28px;
+    border-radius: 4px;
+    background: #e2e8f0;
+  }
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    padding: 24px 0 96px;
+  }
+  .feature {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .feature h3 { margin: 0 0 8px; }
+  .feature p { margin: 0; color: #475569; line-height: 1.5; }
+  .cookie {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 24px;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 14px;
+  }
+  .cookie button {
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 6px;
+    background: #fff;
+    font: inherit;
+    font-weight: 600;
+  }
+  @media (max-width: 800px) {
+    .features { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 40px; }
+    .nav nav { display: none; }
+  }
+  @media (max-width: 400px) {
+    .logos { display: grid; grid-template-columns: repeat(5, 72px); }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header class="nav">
+      <div class="brand">Tally</div>
+      <nav>
+        <a href="#">Features</a>
+        <a href="#">Pricing</a>
+        <a href="#">Log in</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <img src="img/hero-background.png" alt="">
+      <div class="hero-inner">
+        <h1>Invoices that get paid on time</h1>
+        <p>Tally sends, chases and reconciles invoices for design and video studios, so you can get back to the work.</p>
+        <a class="cta" href="#">Start free</a>
+      </div>
+    </section>
+
+    <div class="logos">
+      <div class="logo-item"></div>
+      <div class="logo-item"></div>
+      <div class="logo-item"></div>
+      <div class="logo-item"></div>
+      <div class="logo-item"></div>
+    </div>
+
+    <section class="features">
+      <div class="feature">
+        <h3>Automatic reminders</h3>
+        <p>Polite follow ups go out three, seven and fourteen days after the due date.</p>
+      </div>
+      <div class="feature">
+        <h3>Bank reconciliation</h3>
+        <p>Payments are matched to invoices the moment they land in your account.</p>
+      </div>
+      <div class="feature">
+        <h3>Client portal</h3>
+        <p>Clients see every invoice, receipt and contract in one place.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="cookie">
+    <span>We use cookies to understand how people use Tally. You can change this in your settings at any time.</span>
+    <button type="button">Accept</button>
+  </div>
+</body>
+</html>

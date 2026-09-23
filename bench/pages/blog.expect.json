@@ -1,0 +1,39 @@
+{
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"],
+    "dark": ["--scheme", "dark"]
+  },
+  "bugs": [
+    {
+      "kind": "image broken",
+      "selector": "img.cover",
+      "run": "default",
+      "match": ["image not loaded", "img.cover"],
+      "amended": "grammar rename during the run: broken image became image not loaded",
+      "note": "img/queue-cover.jpg does not exist"
+    },
+    {
+      "kind": "text overflow",
+      "selector": ".permalink",
+      "run": "default",
+      "match": ["text overflows", "permalink"],
+      "note": "a long URL with no break points runs out of the 260px share card"
+    },
+    {
+      "kind": "overflow at 390",
+      "selector": "pre",
+      "run": "mobile",
+      "match": [["past viewport", "pre"], ["past viewport", "code"]],
+      "amended": "the finding lands on the code element inside the pre, which is the same block",
+      "note": "white-space pre with no overflow auto, the SQL lines are wider than a phone"
+    },
+    {
+      "kind": "contrast dark only",
+      "selector": "blockquote",
+      "run": "dark",
+      "match": ["contrast", "blockquote"],
+      "note": "blockquote color is hardcoded #3a3f47, fine on white and unreadable on #0d1117"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "pricing": {
+    ".plan .cta": { "isSeen": true, "note": "Team button clearly lower" },
+    ".billing-note": { "isSeen": true, "note": "note is visibly faint" },
+    ".plan": { "isSeen": true, "note": "seen only as a card with no side margin and cut borders, the 5px overflow is not measurable by eye" }
+  },
+  "dashboard": {
+    ".side-nav li.active": { "isSeen": true, "note": "extra space around Overview is visible" },
+    ".stat.alert": { "isSeen": true, "note": "Refunds card sits lower" },
+    ".empty-body": { "isSeen": false, "note": "24px low in a 260px box, looks centered at a glance" },
+    ".stats": { "isSeen": true, "note": "page obviously wider than the phone, Export button gone" }
+  },
+  "blog": {
+    "img.cover": { "isSeen": true, "note": "broken icon and alt text" },
+    ".permalink": { "isSeen": true, "note": "URL runs out of the card" },
+    "pre": { "isSeen": false, "note": "the code block is below the fold of the 390x844 viewport shot" },
+    "blockquote": { "isSeen": true, "note": "quote is dim on the dark background" }
+  },
+  "settings": {
+    ".hint": { "isSeen": true, "note": "help text visibly faint" },
+    ".toolbar .fmt": { "isSeen": true, "note": "bordered buttons look cramped and tiny" },
+    "dialog.confirm .actions": { "isSeen": true, "note": "input cut at the bottom edge, no buttons" }
+  },
+  "products": {
+    ".add-to-cart": { "isSeen": true, "note": "buttons at three heights" },
+    ".product img": { "isSeen": true, "note": "seen only because the test image has a circle that became an ellipse" },
+    ".name": { "isSeen": false, "note": "the cut title reads as complete, no ellipsis to hint at it" },
+    ".icon-btn": { "isSeen": false, "note": "look like normal small overlay icons" }
+  },
+  "chat": {
+    ".messages .bubble:last-child": { "isSeen": false, "note": "looks like a scrolled list, nothing shows a message is hidden" },
+    ".composer .tool": { "isSeen": false, "note": "unbordered icons, size not judgeable" },
+    ".contact-name": { "isSeen": true, "note": "online status overlaps the name" },
+    ".threads": { "isSeen": true, "note": "thread list covers the conversation" }
+  },
+  "hero": {
+    ".cta": { "isSeen": true, "note": "label sits at the top of the yellow button" },
+    ".feature": { "isSeen": true, "note": "banner cuts the card text, though a cookie overlay is easy to accept as normal" },
+    ".logos": { "isSeen": true, "note": "logo row cut at both edges" }
+  },
+  "table": {
+    "thead th": { "isSeen": false, "note": "reads as a normal muted header style" },
+    ".pill.waiting": { "isSeen": true, "note": "text runs out of the pill" },
+    ".row-action": { "isSeen": false, "note": "small icons look deliberate" },
+    "table": { "isSeen": true, "note": "table cut at the right edge" }
+  },
+  "nav-dropdown": {
+    ".nav-links > li.new": { "isSeen": true, "note": "wider gap before Changelog" },
+    ".menu": { "isSeen": false, "note": "no menu visible, only a sliver of shadow; I would have guessed the hover script failed" },
+    ".nav-links": { "isSeen": true, "note": "links stop at Pricing and there is no menu button" }
+  },
+  "modal": {
+    ".modal-foot": { "isSeen": true, "note": "last row cut, no footer or Send button" },
+    ".close span": { "isSeen": false, "note": "the glyph is 4px low, not noticeable" },
+    ".team-logo": { "isSeen": true, "note": "seen only because the test image has a circle that became an ellipse" }
+  },
+  "rtl": {
+    ".main": { "isSeen": true, "note": "layout visibly broken, but the screenshot does not say which side or why" },
+    ".drawer": { "isSeen": true, "note": "visible, but it could pass for a filter panel that is open on purpose" },
+    ".topbar .icon": { "isSeen": false, "note": "unbordered icons, size not judgeable" }
+  },
+  "grid-areas": {
+    "aside .box h3": { "isSeen": true, "note": "the word runs out of the box" },
+    ".site-footer": { "isSeen": false, "note": "the footer is below the fold at 1280x800" },
+    "aside": { "isSeen": true, "note": "main squeezed to a third of the phone width" }
+  },
+  "carousel": {
+    ".dot": { "isSeen": false, "note": "dots look like any carousel's dots" },
+    ".arrow": { "isSeen": false, "note": "glyph 4px high, not noticeable" },
+    ".slide img": { "isSeen": true, "note": "seen only because the test image has a circle that became an ellipse" }
+  },
+  "sticky": {
+    ".toc li.highlight": { "isSeen": true, "note": "bigger gap after Meet the team" },
+    ".team-photo": { "isSeen": true, "note": "broken icon and alt text" },
+    "#pricing h2": { "isSeen": true, "note": "heading faint behind the translucent header" }
+  }
+}

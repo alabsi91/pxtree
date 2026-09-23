@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>overlaps</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: sans-serif;
+        font-size: 16px;
+        line-height: 24px;
+      }
+
+      section {
+        width: 300px;
+        margin-bottom: 24px;
+      }
+
+      p {
+        margin: 0;
+      }
+
+      .photo {
+        height: 80px;
+        background: #93c5fd;
+      }
+
+      .caption {
+        margin-top: -20px;
+        padding: 24px 16px 8px;
+        background: #f3f4f6;
+      }
+
+      .cards {
+        position: relative;
+      }
+
+      .card {
+        height: 40px;
+        padding: 8px;
+        margin-bottom: 8px;
+        background: #f3f4f6;
+      }
+
+      .badge {
+        position: absolute;
+        top: 64px;
+        left: 280px;
+        width: 40px;
+        height: 40px;
+        background: #ef4444;
+      }
+
+      .avatars {
+        display: flex;
+      }
+
+      .avatar {
+        width: 40px;
+        height: 40px;
+        background: #a78bfa;
+      }
+
+      .avatar + .avatar {
+        margin-left: -10px;
+      }
+
+      .stage {
+        height: 60px;
+      }
+
+      .box {
+        height: 60px;
+        background: #fde68a;
+      }
+
+      .floating {
+        position: fixed;
+        top: 364px;
+        left: 16px;
+        width: 120px;
+        height: 60px;
+        background: #10b981;
+      }
+
+      .tag {
+        position: relative;
+        top: -30px;
+        background: #fca5a5;
+      }
+
+      .note {
+        padding: 8px;
+        background: #f3f4f6;
+      }
+
+      .cover {
+        position: relative;
+        height: 40px;
+        margin-top: -20px;
+        background: #1f2937;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="gallery">
+      <div class="photo"></div>
+      <div class="caption"><p>Caption text</p></div>
+    </section>
+    <section class="cards">
+      <div class="card first-card">Alpha</div>
+      <div class="card second-card">Beta</div>
+      <span class="badge"></span>
+    </section>
+    <section class="avatars">
+      <span class="avatar"></span>
+      <span class="avatar"></span>
+      <span class="avatar"></span>
+      <span class="avatar"></span>
+      <span class="avatar"></span>
+    </section>
+    <section class="stage">
+      <div class="box"></div>
+      <div class="floating"></div>
+    </section>
+    <section class="inline-stage">
+      <div class="box"></div>
+      <span class="tag">Tag</span>
+    </section>
+    <section class="pair">
+      <div class="note"><p>Note text that the next box covers.</p></div>
+      <div class="cover"></div>
+    </section>
+  </body>
+</html>

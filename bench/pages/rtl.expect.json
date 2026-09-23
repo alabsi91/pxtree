@@ -1,0 +1,28 @@
+{
+  "runs": {
+    "default": []
+  },
+  "bugs": [
+    {
+      "kind": "rtl wrong side",
+      "selector": ".main",
+      "run": "default",
+      "match": ["covered", "sidebar"],
+      "note": "the sidebar sits at the inline start (right) but main clears it with margin-left, so the sidebar covers the right 240px of main"
+    },
+    {
+      "kind": "rtl wrong side",
+      "selector": ".drawer",
+      "run": "default",
+      "match": ["covered", "drawer"],
+      "note": "the closed filter drawer is parked with translateX(-100%), which in rtl moves it onto the page instead of off it"
+    },
+    {
+      "kind": "tap target",
+      "selector": ".topbar .icon",
+      "run": "default",
+      "match": ["small target", "icon"],
+      "note": "18px notification, help and search buttons 4px apart"
+    }
+  ]
+}

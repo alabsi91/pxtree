@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview - Northwind Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Inter, system-ui, sans-serif;
+    background: #f4f6fa;
+    color: #172033;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+  .sidebar {
+    background: #111827;
+    color: #cbd5e1;
+    padding: 20px 12px;
+  }
+  .sidebar .logo {
+    color: #fff;
+    font-weight: 700;
+    font-size: 18px;
+    padding: 0 12px 20px;
+  }
+  .side-nav { list-style: none; margin: 0; padding: 0; }
+  .side-nav li + li { margin-top: 4px; }
+  .side-nav a {
+    display: block;
+    padding: 10px 12px;
+    border-radius: 6px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .side-nav li.active { margin: 12px 0; }
+  .side-nav li.active a { background: #1f2937; color: #fff; }
+  main { padding: 24px 32px; }
+  .page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .page-head h1 { margin: 0; font-size: 24px; }
+  .page-head button {
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 6px;
+    background: #2563eb;
+    color: #fff;
+    font: inherit;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .stat {
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px 20px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+  .stat.alert { margin-top: 6px; border-left: 4px solid #dc2626; }
+  .stat-label { font-size: 13px; color: #475569; }
+  .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    margin-top: 6px;
+    white-space: nowrap;
+  }
+  .panels {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .panel {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .panel h2 { margin: 0 0 12px; font-size: 16px; }
+  .chart {
+    height: 220px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .chart span { flex: 1; background: #93c5fd; border-radius: 4px 4px 0 0; }
+  .empty {
+    height: 260px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border: 1px dashed #cbd5e1;
+    border-radius: 10px;
+  }
+  .empty-body { margin-top: 48px; }
+  .empty-body p { margin: 4px 0 0; color: #475569; }
+  @media (max-width: 720px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    main { padding: 16px; }
+    .panels { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 420px) {
+    .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  }
+</style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">Northwind</div>
+      <ul class="side-nav">
+        <li><a href="#">Home</a></li>
+        <li class="active"><a href="#">Overview</a></li>
+        <li><a href="#">Orders</a></li>
+        <li><a href="#">Customers</a></li>
+        <li><a href="#">Inventory</a></li>
+        <li><a href="#">Reports</a></li>
+        <li><a href="#">Settings</a></li>
+      </ul>
+    </aside>
+
+    <main>
+      <div class="page-head">
+        <h1>Overview</h1>
+        <button type="button">Export</button>
+      </div>
+
+      <section class="stats">
+        <div class="stat">
+          <div class="stat-label">Revenue</div>
+          <div class="stat-value">$128,430.55</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Orders</div>
+          <div class="stat-value">3,214</div>
+        </div>
+        <div class="stat alert">
+          <div class="stat-label">Refunds</div>
+          <div class="stat-value">$4,102.10</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Customers</div>
+          <div class="stat-value">18,902</div>
+        </div>
+      </section>
+
+      <section class="panels">
+        <div class="panel">
+          <h2>Weekly revenue</h2>
+          <div class="chart">
+            <span style="height: 40%"></span>
+            <span style="height: 65%"></span>
+            <span style="height: 55%"></span>
+            <span style="height: 80%"></span>
+            <span style="height: 70%"></span>
+            <span style="height: 90%"></span>
+            <span style="height: 60%"></span>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Open tickets</h2>
+          <div class="empty">
+            <div class="empty-body">
+              <strong>No open tickets</strong>
+              <p>New support requests will show up here.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

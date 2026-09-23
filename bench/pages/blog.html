@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why we moved our queue to Postgres - Field Notes</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #1f2328;
+    --muted: #57606a;
+    --card: #f6f8fa;
+    --line: #d0d7de;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --text: #e6edf3;
+      --muted: #9da7b3;
+      --card: #161b22;
+      --line: #30363d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 18px/1.65 Georgia, "Times New Roman", serif;
+  }
+  .site-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--line);
+    font-family: system-ui, sans-serif;
+    font-size: 16px;
+  }
+  .site-header a { color: var(--text); text-decoration: none; font-weight: 700; }
+  .wrap {
+    display: flex;
+    gap: 48px;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+  article { flex: 1; min-width: 0; max-width: 720px; }
+  article h1 { font-size: 40px; line-height: 1.2; margin: 0 0 12px; }
+  .byline { font-family: system-ui, sans-serif; font-size: 14px; color: var(--muted); }
+  .cover {
+    display: block;
+    width: 100%;
+    height: 320px;
+    object-fit: cover;
+    border-radius: 8px;
+    margin: 24px 0;
+    background: var(--card);
+  }
+  blockquote {
+    margin: 24px 0;
+    padding: 4px 20px;
+    border-left: 4px solid var(--line);
+    color: #3a3f47;
+    font-style: italic;
+  }
+  pre {
+    background: var(--card);
+    padding: 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre;
+  }
+  code { font-family: ui-monospace, Menlo, monospace; }
+  aside { width: 260px; flex-shrink: 0; font-family: system-ui, sans-serif; font-size: 15px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 15px; }
+  .permalink {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .tags a {
+    display: inline-block;
+    margin: 0 6px 6px 0;
+    padding: 2px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+  }
+  @media (max-width: 800px) {
+    .wrap { flex-direction: column; gap: 16px; padding: 24px 16px; }
+    aside { width: auto; }
+    article h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+  <header class="site-header"><a href="#">Field Notes</a></header>
+
+  <div class="wrap">
+    <article>
+      <h1>Why we moved our job queue to Postgres</h1>
+      <div class="byline">By Dana Whitfield &middot; 8 min read &middot; March 3, 2026</div>
+
+      <img class="cover" src="img/queue-cover.jpg" alt="Rows of server racks">
+
+      <p>For three years our background jobs ran on a dedicated message broker. It worked, but every incident review ended with the same sentence: the broker and the database disagreed about what had happened.</p>
+
+      <p>This post walks through how we replaced it with a table, a single index and <code>SKIP LOCKED</code>, and what we learned about throughput along the way.</p>
+
+      <blockquote>The fastest queue is the one that commits in the same transaction as the work it describes.</blockquote>
+
+      <h2>The table</h2>
+      <p>Everything starts with one table. Jobs are rows, workers claim rows, and a finished job is simply deleted.</p>
+
+<pre><code>CREATE TABLE jobs (id bigserial PRIMARY KEY, queue text NOT NULL, run_at timestamptz);
+SELECT id FROM jobs WHERE queue = $1 ORDER BY run_at FOR UPDATE SKIP LOCKED LIMIT 10;</code></pre>
+
+      <p>Claiming ten rows at a time kept lock contention low even with forty workers polling the same queue.</p>
+
+      <h2>Throughput</h2>
+      <p>At peak we process about 1,800 jobs per second on a single primary. That is well below what a dedicated broker can do, and well above what we need.</p>
+
+      <p>If your volume is ten times ours, keep the broker. If it is not, the table is simpler to reason about, to back up and to debug at three in the morning.</p>
+    </article>
+
+    <aside>
+      <div class="card">
+        <h3>Share this post</h3>
+        <div class="permalink">https://fieldnotes.example.com/2026/03/why-we-moved-our-job-queue-to-postgres</div>
+      </div>
+      <div class="card tags">
+        <h3>Tags</h3>
+        <a href="#">postgres</a>
+        <a href="#">queues</a>
+        <a href="#">architecture</a>
+        <a href="#">operations</a>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>

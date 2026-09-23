@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>transforms</title>
+    <style>
+      body { margin: 0; padding: 100px; font-family: sans-serif; }
+      .box { width: 100px; height: 20px; margin-bottom: 80px; background: #cde; }
+      .rotated { transform: rotate(30deg); }
+      .scaled { scale: 1.5; }
+      .turned { rotate: 45deg; }
+      .moved { translate: 40px 10px; }
+      .both { transform: rotate(10deg) scale(2); }
+      .spinner-button { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; transform: rotate(90deg); }
+      .spinner-button span { display: block; width: 24px; height: 18px; background: #333; }
+    </style>
+  </head>
+  <body>
+    <div class="box rotated"><span>tilted</span></div>
+    <div class="box scaled"></div>
+    <div class="box turned"></div>
+    <div class="box moved"></div>
+    <div class="box both"></div>
+    <button class="spinner-button"><span></span></button>
+  </body>
+</html>

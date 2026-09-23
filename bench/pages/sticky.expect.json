@@ -1,0 +1,31 @@
+{
+  "runs": {
+    "default": [],
+    "pricing": ["--scroll", "#pricing"]
+  },
+  "bugs": [
+    {
+      "kind": "uneven list spacing",
+      "selector": ".toc li.highlight",
+      "run": "default",
+      "match": ["between", "toc"],
+      "amended": "grammar rename during the run: uneven gaps became gaps ... between X",
+      "note": "the highlighted item has an 18px bottom margin, the others 6px"
+    },
+    {
+      "kind": "image broken",
+      "selector": ".team-photo",
+      "run": "default",
+      "match": ["image not loaded", "team-photo"],
+      "amended": "grammar rename during the run: broken image became image not loaded",
+      "note": "img/team.jpg does not exist"
+    },
+    {
+      "kind": "covered by sticky",
+      "selector": "#pricing h2",
+      "run": "pricing",
+      "match": ["covered", "site-header"],
+      "note": "jumping to #pricing puts the heading under the 72px sticky header, there is no scroll-margin-top"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": [
+    {
+      "kind": "contrast",
+      "selector": "thead th",
+      "run": "default",
+      "match": ["contrast", "th"],
+      "note": "header text #9a9a9a on #f3f4f6"
+    },
+    {
+      "kind": "text overflow",
+      "selector": ".pill.waiting",
+      "run": "default",
+      "match": ["text overflows", "pill"],
+      "note": "Awaiting payment does not fit the fixed 88px pill"
+    },
+    {
+      "kind": "tap target",
+      "selector": ".row-action",
+      "run": "default",
+      "match": ["small target", "row-action"],
+      "note": "16px view, download and delete buttons 4px apart"
+    },
+    {
+      "kind": "overflow at 390",
+      "selector": "table",
+      "run": "mobile",
+      "match": ["past viewport", "table"],
+      "note": "the table has min-width 720px and no scrolling wrapper"
+    }
+  ]
+}

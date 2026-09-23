@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>dedup</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: sans-serif;
+        font-size: 16px;
+        line-height: 24px;
+        color: #111111;
+        background: #ffffff;
+      }
+      ul {
+        margin: 0 0 16px;
+        padding: 0;
+        list-style: none;
+      }
+      .tile {
+        width: 100px;
+        height: 40px;
+        background: #3b82f6;
+      }
+      .row {
+        height: 20px;
+        line-height: 20px;
+      }
+      .row:nth-child(3n) {
+        height: 30px;
+      }
+      .badge {
+        width: 120px;
+      }
+      .outer,
+      .inner {
+        width: 200px;
+      }
+      .cta {
+        display: block;
+        width: 200px;
+        height: 40px;
+        line-height: 40px;
+        color: #111111;
+      }
+    </style>
+  </head>
+  <body>
+    <ul class="identical">
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+      <li class="tile"></li>
+    </ul>
+    <ul class="similar"></ul>
+    <ul class="badges">
+      <li class="badge">New</li>
+      <li class="badge" style="color: #c0c0c0">Beta</li>
+      <li class="badge">Soon</li>
+      <li class="badge">Hot</li>
+      <li class="badge">Old</li>
+    </ul>
+    <div class="outer">
+      <div class="inner">
+        <a class="cta" href="#start">Get started</a>
+      </div>
+    </div>
+    <script>
+      const similarList = document.querySelector('.similar');
+
+      for (let rowNumber = 1; rowNumber <= 30; rowNumber++) {
+        const row = document.createElement('li');
+
+        row.className = 'row';
+        row.textContent = `Row ${rowNumber}`;
+        similarList.append(row);
+      }
+    </script>
+  </body>
+</html>

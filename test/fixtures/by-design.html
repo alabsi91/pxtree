@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>by-design</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: sans-serif;
+        font-size: 16px;
+        line-height: 24px;
+      }
+
+      section {
+        margin-bottom: 32px;
+      }
+
+      .marquee {
+        width: 300px;
+        overflow: hidden;
+      }
+
+      .marquee-track {
+        display: flex;
+        gap: 24px;
+        width: max-content;
+        animation: marquee-scroll 12s linear infinite;
+      }
+
+      .marquee-track span {
+        white-space: nowrap;
+      }
+
+      @keyframes marquee-scroll {
+        from {
+          transform: translateX(0);
+        }
+
+        to {
+          transform: translateX(-50%);
+        }
+      }
+
+      .carousel {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .carousel-viewport {
+        width: 320px;
+        overflow: hidden;
+      }
+
+      .carousel-track {
+        display: flex;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        transform: translateX(-320px);
+      }
+
+      .slide {
+        position: relative;
+        flex: 0 0 320px;
+        height: 120px;
+        background: #e5e7eb;
+      }
+
+      .slide-caption {
+        position: absolute;
+        left: 16px;
+        bottom: 16px;
+      }
+
+      .rounded-header {
+        height: 48px;
+        overflow: hidden;
+        background: #111827;
+        color: #ffffff;
+      }
+
+      .rounded-header ul {
+        display: flex;
+        margin: 0;
+        padding: 12px;
+        list-style: none;
+      }
+
+      .has-dropdown {
+        position: relative;
+      }
+
+      .dropdown {
+        position: absolute;
+        top: 36px;
+        left: 0;
+        width: 200px;
+        background: #ffffff;
+        color: #111827;
+      }
+
+      .dropdown a {
+        display: block;
+        padding: 12px;
+      }
+
+      .anchor {
+        position: relative;
+        height: 60px;
+      }
+
+      .mask {
+        height: 20px;
+        overflow: hidden;
+      }
+
+      .escaping-label {
+        position: absolute;
+        top: 30px;
+        left: 0;
+      }
+
+      .snap-carousel {
+        display: flex;
+        width: 320px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+      }
+
+      .snap-slide {
+        flex: 0 0 320px;
+        height: 80px;
+        scroll-snap-align: start;
+        background: #f3f4f6;
+      }
+
+      .zoom-card {
+        width: 200px;
+        overflow: hidden;
+        background: #ffffff;
+      }
+
+      .zoom-card img {
+        display: block;
+        width: 200px;
+        height: 120px;
+        transform: scale(1.15);
+      }
+
+      .panel {
+        width: 300px;
+        height: 60px;
+        overflow: hidden;
+        background: #f9fafb;
+      }
+
+      .panel p {
+        margin: 0 0 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="marquee" role="marquee">
+      <div class="marquee-track">
+        <span>Acme</span>
+        <span>Globex Corporation</span>
+        <span>Initech</span>
+        <span>Umbrella</span>
+        <span>Acme</span>
+        <span>Globex Corporation</span>
+        <span>Initech</span>
+        <span>Umbrella</span>
+      </div>
+    </section>
+
+    <section class="carousel" aria-roledescription="carousel">
+      <button class="prev" type="button">Prev</button>
+      <div class="carousel-viewport">
+        <ul class="carousel-track">
+          <li class="slide">Slide one</li>
+          <li class="slide">Slide two</li>
+          <li class="slide">Slide three<span class="slide-caption">Caption three</span></li>
+          <li class="slide">Slide four<span class="slide-caption">Caption four</span></li>
+          <li class="slide">Slide five</li>
+        </ul>
+      </div>
+      <button class="next" type="button">Next</button>
+    </section>
+
+    <section class="snap-carousel">
+      <div class="snap-slide">First</div>
+      <div class="snap-slide">Second</div>
+      <div class="snap-slide">Third</div>
+    </section>
+
+    <section class="zoom-card">
+      <img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 120'%3E%3Crect width='200' height='120' fill='%2360a5fa'/%3E%3C/svg%3E" />
+      <p>Caption under the zoomed image.</p>
+    </section>
+
+    <header class="rounded-header">
+      <ul>
+        <li class="has-dropdown">
+          Products
+          <div class="dropdown">
+            <a href="#drive">Drive</a>
+            <a href="#docs">Docs</a>
+          </div>
+        </li>
+      </ul>
+    </header>
+
+    <section class="anchor">
+      <div class="mask">
+        <span class="escaping-label">Escapes the mask</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <p>This panel has a fixed height and hides whatever does not fit inside it, so its later lines are cut.</p>
+      <button class="submit" type="button">Send</button>
+    </section>
+  </body>
+</html>

@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>shadow dom</title>
+    <style>
+      body { margin: 0; padding: 16px; font-family: sans-serif; }
+    </style>
+  </head>
+  <body>
+    <open-card>
+      <span slot="title" class="card-title">Card title</span>
+      <p class="card-body">Slotted body text</p>
+    </open-card>
+    <closed-panel></closed-panel>
+    <sealed-box>
+      <template shadowrootmode="closed">
+        <style>div { width: 120px; height: 30px; background: #eee; }</style>
+        <div class="sealed-inner">Sealed content</div>
+      </template>
+    </sealed-box>
+    <script>
+      customElements.define(
+        'open-card',
+        class extends HTMLElement {
+          constructor() {
+            super();
+            const root = this.attachShadow({ mode: 'open' });
+            root.innerHTML = `
+              <style>.frame { padding: 12px; border: 1px solid #ccc; } h2 { margin: 0 0 8px; }</style>
+              <div class="frame">
+                <h2><slot name="title"></slot></h2>
+                <slot></slot>
+                <span class="inner">Inside the open root</span>
+              </div>`;
+          }
+        },
+      );
+      customElements.define(
+        'closed-panel',
+        class extends HTMLElement {
+          constructor() {
+            super();
+            const root = this.attachShadow({ mode: 'closed' });
+            root.innerHTML = `<style>section { padding: 8px; background: #f4f4f4; }</style>
+              <section class="panel-body"><b class="closed-inner">Inside the closed root</b></section>`;
+          }
+        },
+      );
+    </script>
+  </body>
+</html>

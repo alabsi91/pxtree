@@ -1,0 +1,9 @@
+{
+  "clean": true,
+  "patterns": "a looping announcement marquee and a carousel showing slide 2 of 4",
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": []
+}

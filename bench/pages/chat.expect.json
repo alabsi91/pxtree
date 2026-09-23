@@ -1,0 +1,36 @@
+{
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": [
+    {
+      "kind": "covered by fixed",
+      "selector": ".messages .bubble:last-child",
+      "run": "default",
+      "match": ["covered", "form.composer"],
+      "note": "the composer is fixed at the bottom and the message list has no bottom padding for it"
+    },
+    {
+      "kind": "tap target",
+      "selector": ".composer .tool",
+      "run": "default",
+      "match": ["small target", "tool"],
+      "note": "20px attach, emoji and GIF buttons 2px apart"
+    },
+    {
+      "kind": "text overflow",
+      "selector": ".contact-name",
+      "run": "default",
+      "match": ["text overflows", "contact-name"],
+      "note": "a 140px nowrap box holding a long name"
+    },
+    {
+      "kind": "responsive rule breaks at 390",
+      "selector": ".threads",
+      "run": "mobile",
+      "match": ["covered", "aside.threads"],
+      "note": "the max-width 480 rule makes the thread list a fixed drawer but never moves it off screen, it covers the conversation"
+    }
+  ]
+}

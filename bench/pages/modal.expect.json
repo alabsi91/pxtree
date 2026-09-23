@@ -1,0 +1,31 @@
+{
+  "runs": {
+    "default": [],
+    "open": ["--script", "await page.click('#invite')", "--wait", ".overlay.open"]
+  },
+  "bugs": [
+    {
+      "kind": "modal content cut",
+      "selector": ".modal-foot",
+      "run": "open",
+      "match": ["clipped", "div.modal"],
+      "note": "max-height 70vh with overflow hidden, eight invite rows push the footer and its Send button out"
+    },
+    {
+      "kind": "off-center",
+      "selector": ".close span",
+      "run": "open",
+      "match": ["off center", "close"],
+      "amended": "grammar rename during the run: off-center became off center",
+      "note": "the close glyph is nudged 4px down with position relative inside a grid-centered box"
+    },
+    {
+      "kind": "image distorted",
+      "selector": ".team-logo",
+      "run": "open",
+      "match": ["image aspect", "team-logo"],
+      "amended": "grammar rename during the run: image distorted became image aspect N of natural",
+      "note": "a 160x100 logo forced into 48x48"
+    }
+  ]
+}

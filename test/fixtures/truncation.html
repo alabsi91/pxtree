@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>truncation</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        font-size: 16px;
+        line-height: 24px;
+      }
+
+      main {
+        width: 600px;
+        margin: 0 auto;
+        padding: 24px 0;
+      }
+
+      p {
+        margin: 0 0 16px;
+      }
+
+      .ellipsis,
+      .cut,
+      .spill {
+        width: 200px;
+        white-space: nowrap;
+      }
+
+      .ellipsis {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .cut {
+        overflow: hidden;
+      }
+
+      .clamp {
+        display: -webkit-box;
+        width: 200px;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .card {
+        width: 240px;
+        padding: 16px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        background: #f3f4f6;
+      }
+
+      .note {
+        display: inline-block;
+        width: 300px;
+        white-space: nowrap;
+      }
+
+      .wide-row {
+        width: 1000px;
+        margin-top: 16px;
+        background: #e5e7eb;
+      }
+
+      .wider-child {
+        width: 1100px;
+        height: 40px;
+        background: #9ca3af;
+      }
+
+      .bleed {
+        width: 100vw;
+        height: 80px;
+        margin-left: calc(50% - 50vw);
+        background: #e5e7eb;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="ellipsis">This sentence is far too long to fit in two hundred pixels.</p>
+      <p class="clamp">
+        This paragraph runs over several lines and gets clamped to two of them by the line clamp, so the rest
+        of it is hidden from the reader.
+      </p>
+      <p class="cut">This sentence is also far too long and simply gets cut off.</p>
+      <p class="spill">This sentence spills out of its narrow box.</p>
+      <div class="card"><span class="note">billed yearly, cancel anytime you like</span></div>
+      <section class="bleed"></section>
+      <div class="wide-row"><div class="wider-child"></div></div>
+    </main>
+  </body>
+</html>

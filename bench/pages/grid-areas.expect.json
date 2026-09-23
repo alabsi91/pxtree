@@ -1,0 +1,30 @@
+{
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": [
+    {
+      "kind": "text overflow",
+      "selector": "aside .box h3",
+      "run": "default",
+      "match": ["text overflows", "h3"],
+      "note": "Datenschutzgrundverordnung is one word wider than the 240px aside"
+    },
+    {
+      "kind": "clipped by overflow hidden",
+      "selector": ".site-footer",
+      "run": "default",
+      "match": ["clipped", "site-footer"],
+      "note": "the footer is 48px tall with overflow hidden, its second line with the Privacy and Terms links is cut"
+    },
+    {
+      "kind": "responsive rule breaks at 390",
+      "selector": "aside",
+      "run": "mobile",
+      "match": [["main", "!!"], ["past viewport", "aside"]],
+      "amended": "the first expectation guessed the symptom; the aside actually lands in an implicit column off the right edge, which the screenshot could not show",
+      "note": "the max-width 400 areas drop the aside area but aside keeps grid-area aside, so it lands in an implicit column and squeezes main to about 146px; the grammar has no finding for a squeezed track, so this counts only if some finding lands on main"
+    }
+  ]
+}

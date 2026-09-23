@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compliance guide - Harbor Legal</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Source Sans 3", "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    color: #22252b;
+    background: #fbfaf7;
+  }
+  .shell {
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    grid-template-areas:
+      "header header"
+      "main aside"
+      "footer footer";
+    gap: 24px 32px;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .shell > header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0;
+    border-bottom: 2px solid #22252b;
+  }
+  .shell > header strong { font-size: 22px; letter-spacing: 0.02em; }
+  .shell > header nav a { margin-left: 18px; color: #22252b; }
+  main { grid-area: main; }
+  main h1 { font-size: 36px; line-height: 1.2; margin: 8px 0 16px; }
+  main h2 { font-size: 22px; margin: 32px 0 8px; }
+  .lede { font-size: 20px; color: #4a4f59; }
+  .callout {
+    border-left: 4px solid #b4541a;
+    background: #fff4ea;
+    padding: 12px 16px;
+    margin: 20px 0;
+  }
+  aside { grid-area: aside; }
+  .box {
+    background: #fff;
+    border: 1px solid #e3e0d8;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .box h3 { font-size: 20px; margin: 0 0 8px; }
+  .box ul { margin: 0; padding-left: 18px; font-size: 15px; }
+  .site-footer {
+    grid-area: footer;
+    height: 48px;
+    overflow: hidden;
+    border-top: 1px solid #e3e0d8;
+    padding-top: 12px;
+    font-size: 14px;
+    color: #4a4f59;
+  }
+  .site-footer p { margin: 0; }
+  @media (max-width: 400px) {
+    .shell {
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "header"
+        "main"
+        "footer";
+      padding: 0 16px;
+    }
+    .shell > header nav { display: none; }
+    main h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <strong>Harbor Legal</strong>
+      <nav>
+        <a href="#">Guides</a>
+        <a href="#">Templates</a>
+        <a href="#">Contact</a>
+      </nav>
+    </header>
+
+    <main>
+      <h1>A practical guide to data retention for small companies</h1>
+      <p class="lede">How long you may keep customer records, what to delete first, and how to write a retention policy your team will actually follow.</p>
+
+      <h2>Start with an inventory</h2>
+      <p>List every place customer data lives: your CRM, your billing tool, shared drives, support inboxes and the spreadsheet someone exported two years ago. You cannot set a retention period for data you do not know you have.</p>
+
+      <div class="callout">Tip: ask each team lead for their five most used tools. That covers most of it.</div>
+
+      <h2>Set a period per category</h2>
+      <p>Invoices usually have a legal minimum, often seven to ten years. Marketing contacts do not. Support conversations sit in between. Write the period next to each category and the reason for it.</p>
+
+      <h2>Automate the deletion</h2>
+      <p>A policy nobody runs is a liability. Most tools can delete or anonymize records after a set period. Where they cannot, put a recurring reminder on a named person's calendar.</p>
+    </main>
+
+    <aside>
+      <div class="box">
+        <h3>Datenschutzgrundverordnung</h3>
+        <p style="margin: 0; font-size: 15px;">The German name of the GDPR, which you will see on most EU templates.</p>
+      </div>
+      <div class="box">
+        <h3>In this guide</h3>
+        <ul>
+          <li>Inventory</li>
+          <li>Retention periods</li>
+          <li>Automation</li>
+        </ul>
+      </div>
+    </aside>
+
+    <footer class="site-footer">
+      <p>&copy; 2026 Harbor Legal LLP. This guide is general information and not legal advice.</p>
+      <p>Registered in England and Wales, company number 08123456. <a href="#">Privacy</a> &middot; <a href="#">Terms</a></p>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "runs": {
+    "default": []
+  },
+  "bugs": [
+    {
+      "kind": "tap target",
+      "selector": ".dot",
+      "run": "default",
+      "match": ["small target", "dot"],
+      "note": "10px pagination dots 6px apart"
+    },
+    {
+      "kind": "off-center",
+      "selector": ".arrow",
+      "run": "default",
+      "match": ["off center", "arrow"],
+      "amended": "grammar rename during the run: off-center became off center",
+      "note": "the arrow glyph sits at the top of the 40px circle, nothing centers it vertically"
+    },
+    {
+      "kind": "image distorted",
+      "selector": ".slide img",
+      "run": "default",
+      "match": ["image aspect", "img"],
+      "amended": "grammar rename during the run: image distorted became image aspect N of natural",
+      "note": "a 1600x600 photo forced into 800x360 without object-fit"
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Headphones - Soundhouse</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #202124;
+    background: #fafafa;
+  }
+  .shop-header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 14px 32px;
+    background: #fff;
+    border-bottom: 1px solid #e8e8e8;
+  }
+  .shop-header .logo { font-weight: 800; font-size: 20px; }
+  .shop-header input {
+    flex: 1;
+    max-width: 480px;
+    padding: 10px 14px;
+    border: 1px solid #dadce0;
+    border-radius: 20px;
+    font: inherit;
+  }
+  .page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  .crumbs { font-size: 13px; color: #5f6368; margin-bottom: 8px; }
+  .page h1 { margin: 0 0 20px; font-size: 26px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .product {
+    background: #fff;
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    padding: 14px;
+    position: relative;
+  }
+  .product img {
+    display: block;
+    width: 100%;
+    height: 120px;
+    border-radius: 6px;
+  }
+  .product .tools {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 4px;
+  }
+  .icon-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 11px;
+  }
+  .price { font-size: 20px; font-weight: 700; margin: 12px 0 4px; }
+  .name {
+    font-size: 15px;
+    line-height: 20px;
+    height: 40px;
+    overflow: hidden;
+    margin: 0 0 6px;
+  }
+  .desc { font-size: 13px; color: #5f6368; margin: 0 0 12px; }
+  .add-to-cart {
+    width: 100%;
+    padding: 10px;
+    border: 0;
+    border-radius: 6px;
+    background: #1a73e8;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+  }
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+    .shop-header { padding: 12px 16px; }
+    .page { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+  <header class="shop-header">
+    <div class="logo">Soundhouse</div>
+    <input type="search" placeholder="Search headphones, speakers, cables">
+  </header>
+
+  <main class="page">
+    <div class="crumbs">Audio / Headphones</div>
+    <h1>Headphones</h1>
+
+    <div class="grid">
+      <div class="product">
+        <img src="img/slide.png" alt="Aurora ANC over-ear">
+        <div class="tools">
+          <button class="icon-btn" title="Add to wishlist">&#9825;</button>
+          <button class="icon-btn" title="Compare">&#8646;</button>
+        </div>
+        <div class="price">$249</div>
+        <h2 class="name">Aurora ANC over-ear</h2>
+        <p class="desc">Adaptive noise cancelling, 40 hour battery.</p>
+        <button class="add-to-cart">Add to cart</button>
+      </div>
+
+      <div class="product">
+        <img src="img/slide.png" alt="Pulse Sport">
+        <div class="tools">
+          <button class="icon-btn" title="Add to wishlist">&#9825;</button>
+          <button class="icon-btn" title="Compare">&#8646;</button>
+        </div>
+        <div class="price">$89</div>
+        <h2 class="name">Pulse Sport</h2>
+        <p class="desc">Sweat resistant.</p>
+        <button class="add-to-cart">Add to cart</button>
+      </div>
+
+      <div class="product">
+        <img src="img/slide.png" alt="Studio Reference">
+        <div class="tools">
+          <button class="icon-btn" title="Add to wishlist">&#9825;</button>
+          <button class="icon-btn" title="Compare">&#8646;</button>
+        </div>
+        <div class="price">$399</div>
+        <h2 class="name">Studio Reference Monitor Headphones with Detachable Coiled Cable and Carry Case</h2>
+        <p class="desc">Flat response for mixing and mastering. Includes a 3.5 mm to 6.35 mm adapter and a hard shell case.</p>
+        <button class="add-to-cart">Add to cart</button>
+      </div>
+
+      <div class="product">
+        <img src="img/slide.png" alt="Loop Buds">
+        <div class="tools">
+          <button class="icon-btn" title="Add to wishlist">&#9825;</button>
+          <button class="icon-btn" title="Compare">&#8646;</button>
+        </div>
+        <div class="price">$129</div>
+        <h2 class="name">Loop Buds</h2>
+        <p class="desc">Wireless charging case, six colors.</p>
+        <button class="add-to-cart">Add to cart</button>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

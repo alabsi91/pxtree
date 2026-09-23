@@ -1,0 +1,9 @@
+{
+  "clean": true,
+  "patterns": "a closed off-canvas mobile menu parked with translateX(-100%) and visibility hidden, a desktop nav hidden on phones, and a sticky header",
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": []
+}

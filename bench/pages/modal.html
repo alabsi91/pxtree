@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workspace - Canvas</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    color: #1c1c28;
+    background: #f3f4f8;
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 28px;
+    background: #fff;
+    border-bottom: 1px solid #e3e5ec;
+  }
+  .topbar strong { font-size: 18px; }
+  .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid #d5d8e1;
+    background: #fff;
+    font: inherit;
+  }
+  .btn.primary { background: #5b3df5; color: #fff; border-color: #5b3df5; }
+  .content { max-width: 960px; margin: 40px auto; padding: 0 24px; }
+  .content h1 { font-size: 26px; margin: 0 0 8px; }
+  .content > p { color: #5a5f73; margin: 0 0 24px; }
+  .boards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .board {
+    height: 140px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #e3e5ec;
+    padding: 16px;
+  }
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(18, 18, 30, 0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .overlay.open { display: flex; }
+  .modal {
+    width: 520px;
+    max-height: 70vh;
+    overflow: hidden;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 20px;
+    border-bottom: 1px solid #eceef3;
+  }
+  .team-logo { width: 48px; height: 48px; border-radius: 10px; }
+  .modal-head h2 { flex: 1; margin: 0; font-size: 18px; }
+  .close {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+    border-radius: 8px;
+    background: #f3f4f8;
+    cursor: pointer;
+  }
+  .close span { position: relative; top: 4px; font-size: 18px; line-height: 1; }
+  .invite-list { list-style: none; margin: 0; padding: 8px 20px; }
+  .invite-list li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f1f5;
+  }
+  .invite-list input {
+    flex: 1;
+    padding: 9px 12px;
+    border: 1px solid #d5d8e1;
+    border-radius: 8px;
+    font: inherit;
+  }
+  .invite-list select {
+    padding: 9px 8px;
+    border: 1px solid #d5d8e1;
+    border-radius: 8px;
+    font: inherit;
+  }
+  .modal-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-top: 1px solid #eceef3;
+  }
+  .modal-foot .step { color: #5a5f73; font-size: 13px; }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <strong>Canvas</strong>
+    <button class="btn primary" id="invite" type="button">Invite teammates</button>
+  </header>
+
+  <main class="content">
+    <h1>Good morning, Sam</h1>
+    <p>Pick up where you left off or start a new board.</p>
+    <div class="boards">
+      <div class="board">Q4 roadmap</div>
+      <div class="board">Onboarding flow</div>
+      <div class="board">Brand refresh</div>
+    </div>
+  </main>
+
+  <div class="overlay" id="overlay">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+      <div class="modal-head">
+        <img class="team-logo" src="img/product.png" alt="">
+        <h2 id="invite-title">Invite your team to Acme Design</h2>
+        <div class="close" role="button" aria-label="Close"><span>&times;</span></div>
+      </div>
+      <ul class="invite-list">
+        <li><input type="email" placeholder="name@company.com"><select><option>Editor</option><option>Viewer</option></select></li>
+        <li><input type="email" placeholder="name@company.com"><select><option>Editor</option><option>Viewer</option></select></li>
+        <li><input type="email" placeholder="name@company.com"><select><option>Editor</option><option>Viewer</option></select></li>
+        <li><input type="email" placeholder="name@company.com"><select><option>Editor</option><option>Viewer</option></select></li>
+        <li><input type="email" placeholder="name@company.com"><select><option>Editor</option><option>Viewer</option></select></li>
+        <li><input type="email" placeholder="name@company.com"><select><option>Editor</option><option>Viewer</option></select></li>
+        <li><input type="email" placeholder="name@company.com"><select><option>Editor</option><option>Viewer</option></select></li>
+        <li><input type="email" placeholder="name@company.com"><select><option>Editor</option><option>Viewer</option></select></li>
+      </ul>
+      <div class="modal-foot">
+        <span class="step">Step 2 of 3</span>
+        <div>
+          <button class="btn" type="button">Back</button>
+          <button class="btn primary" type="button">Send invites</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('invite').addEventListener('click', () => {
+      document.getElementById('overlay').classList.add('open');
+    });
+  </script>
+</body>
+</html>

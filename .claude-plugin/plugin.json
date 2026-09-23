@@ -1,0 +1,7 @@
+{
+  "name": "pxtree",
+  "description": "Measure rendered webpages",
+  "version": "0.1.0",
+  "author": { "name": "alabsi91" },
+  "skills": ["./skills/pxtree"]
+}

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>alignment</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: sans-serif;
+        font-size: 16px;
+        line-height: 24px;
+      }
+
+      ul {
+        margin: 0 0 24px;
+        padding: 0;
+        list-style: none;
+      }
+
+      .cards,
+      .plans {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+
+      .card,
+      .plan {
+        box-sizing: border-box;
+        width: 200px;
+        padding: 16px;
+        background: #f3f4f6;
+      }
+
+      .plan:nth-child(3) {
+        width: 212px;
+      }
+
+      .card h3,
+      .card p {
+        margin: 0 0 8px;
+      }
+
+      .button {
+        display: block;
+        padding: 8px 16px;
+        color: #ffffff;
+        background: #1d4ed8;
+        text-decoration: none;
+      }
+
+      .step {
+        height: 24px;
+        margin-bottom: 16px;
+      }
+
+      .step:nth-child(3) {
+        margin-bottom: 24px;
+      }
+
+      .stats {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        margin-bottom: 24px;
+      }
+
+      .stat {
+        width: 150px;
+        padding: 16px;
+        background: #f3f4f6;
+      }
+
+      .stat.alert {
+        margin-top: 6px;
+      }
+
+      article h2,
+      article p {
+        margin: 0 0 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <ul class="cards">
+      <li class="card">
+        <h3>Starter</h3>
+        <p>Short text.</p>
+        <a class="button" href="#starter">Choose</a>
+      </li>
+      <li class="card">
+        <h3>Team</h3>
+        <p>Short text.</p>
+        <a class="button" href="#team">Choose</a>
+      </li>
+      <li class="card">
+        <h3>Business</h3>
+        <p>A much longer description that wraps onto several lines of text.</p>
+        <a class="button" href="#business">Choose</a>
+      </li>
+    </ul>
+    <ul class="plans">
+      <li class="plan">Monthly</li>
+      <li class="plan">Yearly</li>
+      <li class="plan featured">Lifetime</li>
+    </ul>
+    <ul class="steps">
+      <li class="step">One</li>
+      <li class="step">Two</li>
+      <li class="step active">Three</li>
+      <li class="step">Four</li>
+      <li class="step">Five</li>
+    </ul>
+    <div class="stats">
+      <div class="stat">Revenue</div>
+      <div class="stat">Orders</div>
+      <div class="stat alert">Refunds</div>
+      <div class="stat">Customers</div>
+    </div>
+    <article>
+      <h2>First heading</h2>
+      <p>First paragraph.</p>
+      <h2>Second heading</h2>
+      <p>Second paragraph.</p>
+    </article>
+    <p class="with-link">Read the <a href="#guide">guide</a> first.</p>
+  </body>
+</html>

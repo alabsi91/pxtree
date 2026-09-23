@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>svg and iframe</title>
+    <style>
+      body { margin: 0; padding: 16px; font-family: sans-serif; }
+      svg { display: block; width: 400px; height: 200px; }
+      iframe { display: block; width: 400px; height: 200px; margin-top: 16px; border: 1px solid #ccc; }
+    </style>
+  </head>
+  <body>
+    <svg class="chart" viewBox="0 0 400 200"></svg>
+    <iframe class="embed" srcdoc="<p>Inside the frame</p><div>More frame content</div>"></iframe>
+    <script>
+      const chart = document.querySelector('svg.chart');
+      for (let dotNumber = 0; dotNumber < 200; dotNumber++) {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', String((dotNumber % 20) * 20 + 10));
+        dot.setAttribute('cy', String(Math.floor(dotNumber / 20) * 20 + 10));
+        dot.setAttribute('r', '4');
+        chart.append(dot);
+      }
+    </script>
+  </body>
+</html>

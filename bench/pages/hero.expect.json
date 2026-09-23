@@ -1,0 +1,30 @@
+{
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": [
+    {
+      "kind": "off-center",
+      "selector": ".cta",
+      "run": "default",
+      "match": ["off center", "cta"],
+      "amended": "grammar rename during the run: off-center became off center",
+      "note": "a 48px tall inline-block with 20px line height and no vertical padding, the label sits at the top"
+    },
+    {
+      "kind": "covered by fixed",
+      "selector": ".feature",
+      "run": "default",
+      "match": ["covered", "cookie"],
+      "note": "the fixed cookie banner covers the bottom of the feature cards"
+    },
+    {
+      "kind": "responsive rule breaks at 390",
+      "selector": ".logos",
+      "run": "mobile",
+      "match": ["past viewport", "logo"],
+      "note": "the max-width 400 rule swaps the wrapping flex row for five fixed 72px tracks, 424px wide"
+    }
+  ]
+}

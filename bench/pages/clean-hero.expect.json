@@ -1,0 +1,9 @@
+{
+  "clean": true,
+  "patterns": "a full-bleed hero image, an avatar stack with negative margins and a decorative gradient blob behind a heading",
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": []
+}

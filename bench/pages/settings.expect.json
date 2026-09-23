@@ -1,0 +1,30 @@
+{
+  "runs": {
+    "default": [],
+    "dialog": ["--script", "await page.click('#delete-account')", "--wait", "dialog.confirm"]
+  },
+  "bugs": [
+    {
+      "kind": "contrast",
+      "selector": ".hint",
+      "run": "default",
+      "match": ["contrast", "hint"],
+      "note": "help text #a8adb5 on white"
+    },
+    {
+      "kind": "tap target",
+      "selector": ".toolbar .fmt",
+      "run": "default",
+      "match": ["small target", "fmt"],
+      "note": "18px formatting buttons 2px apart"
+    },
+    {
+      "kind": "modal content cut",
+      "selector": "dialog.confirm .actions",
+      "run": "dialog",
+      "match": ["clipped", "confirm"],
+      "amended": "names are tag#id.class, so the dialog prints as dialog#confirm-delete.confirm",
+      "note": "the dialog has a fixed 220px height and overflow hidden, the input and buttons fall below it"
+    }
+  ]
+}

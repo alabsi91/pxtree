@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beacon - uptime monitoring</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f5f6f8;
+    --text: #16181d;
+    --muted: #5b6270;
+    --accent: #3b5bdb;
+    --accent-text: #ffffff;
+    --border: #e2e5ea;
+    --footer-bg: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --surface: #181b21;
+      --text: #e8eaee;
+      --muted: #a3aab6;
+      --accent: #748ffc;
+      --accent-text: #0f1115;
+      --border: #2a2e36;
+      --footer-bg: #14161b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: auto; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+  a { color: inherit; text-decoration: none; }
+  .container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  .site-nav { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--border); }
+  .site-nav .container { display: flex; align-items: center; gap: 32px; height: 64px; }
+  .logo { font-weight: 800; font-size: 20px; }
+  .nav-links { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; }
+  .nav-links a { color: var(--muted); font-size: 15px; white-space: nowrap; }
+  .nav-cta { margin-left: auto; }
+
+  .button { display: inline-block; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 15px; border: 1px solid transparent; cursor: pointer; }
+  .button-primary { background: var(--accent); color: var(--accent-text); }
+  .button-secondary { background: transparent; color: var(--text); border-color: var(--border); }
+
+  .hero { padding: 96px 0 72px; text-align: center; }
+  .hero h1 { font-size: 56px; line-height: 1.1; margin: 0 0 20px; letter-spacing: -0.02em; white-space: nowrap; }
+  .hero p { font-size: 19px; color: var(--muted); max-width: 620px; margin: 0 auto 32px; }
+  .hero-actions { display: flex; gap: 12px; justify-content: center; }
+
+  .pricing { padding: 72px 0; background: var(--surface); }
+  .pricing h2, .testimonials h2 { font-size: 36px; margin: 0 0 40px; text-align: center; }
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .price-card { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+  .price-card h3 { margin: 0 0 8px; font-size: 20px; }
+  .price { font-size: 40px; font-weight: 800; margin: 0 0 12px; }
+  .price-card ul { padding-left: 18px; color: var(--muted); margin: 0 0 24px; }
+  .price-card .button { width: 100%; text-align: center; }
+
+  .testimonials { padding: 72px 0; }
+  .quote-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+  .quote { border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 0; }
+  .quote blockquote { margin: 0 0 16px; font-size: 17px; }
+  .quote figcaption { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 14px; }
+  .quote img { width: 44px; height: 44px; border-radius: 50%; }
+
+  .site-footer { background: var(--footer-bg); padding: 48px 0; font-size: 14px; }
+  .footer-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+  .footer-grid h4 { margin: 0 0 12px; font-size: 14px; }
+  .footer-grid ul { list-style: none; margin: 0; padding: 0; }
+  .footer-grid li { margin-bottom: 8px; color: var(--muted); }
+  .footer-legal li { color: #4a4f58; }
+
+  .modal { border: none; border-radius: 12px; padding: 0; width: min(480px, 92vw); background: var(--bg); color: var(--text); }
+  .modal::backdrop { background: rgb(0 0 0 / 0.5); }
+  .modal-body { max-height: 260px; overflow: hidden; padding: 24px; }
+  .modal-body h2 { margin: 0 0 12px; }
+  .modal-body label { display: block; font-size: 14px; margin: 12px 0 4px; }
+  .modal-body input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font: inherit; background: var(--surface); color: var(--text); }
+  .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px; }
+
+  @media (max-width: 600px) {
+    .container { padding: 0 16px; }
+    .site-nav .container { gap: 16px; }
+    .hero { padding: 56px 0 48px; }
+    .hero h1 { font-size: 40px; }
+    .hero-actions { flex-direction: column; align-items: stretch; }
+    .pricing-grid, .quote-grid { grid-template-columns: 1fr; }
+    .footer-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+  <header class="site-nav">
+    <div class="container">
+      <a class="logo" href="#">Beacon</a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+        <li><a href="#customers">Customers</a></li>
+      </ul>
+      <a class="button button-primary nav-cta" href="#pricing">Start free trial</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="features">
+      <div class="container">
+        <h1>Know before your users do.</h1>
+        <p>Beacon checks your sites, APIs and cron jobs every 30 seconds from twelve regions and pages the right person when something breaks.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#pricing">Start monitoring</a>
+          <button class="button button-secondary" id="open-demo" type="button">Book a demo</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing">
+      <div class="container">
+        <h2 id="pricing">Simple pricing</h2>
+        <div class="pricing-grid">
+          <article class="price-card">
+            <h3>Hobby</h3>
+            <p class="price">$0</p>
+            <ul><li>5 monitors</li><li>5 minute checks</li></ul>
+            <a class="button button-secondary" href="#">Get started</a>
+          </article>
+          <article class="price-card">
+            <h3>Team</h3>
+            <p class="price">$29</p>
+            <ul><li>100 monitors</li><li>30 second checks</li><li>Slack and PagerDuty</li><li>Status page</li></ul>
+            <a class="button button-primary" href="#">Start trial</a>
+          </article>
+          <article class="price-card">
+            <h3>Business</h3>
+            <p class="price">$99</p>
+            <ul><li>Unlimited monitors</li><li>SSO and audit log</li><li>Priority support</li></ul>
+            <a class="button button-secondary" href="#">Contact sales</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="testimonials" id="customers">
+      <div class="container">
+        <h2>Teams sleep better</h2>
+        <div class="quote-grid">
+          <figure class="quote">
+            <blockquote>We cut our mean time to detect from twelve minutes to forty seconds in the first week.</blockquote>
+            <figcaption><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Crect width='44' height='44' fill='%23f59f00'/%3E%3C/svg%3E">Dana Ruiz, SRE lead at Parcelhub</figcaption>
+          </figure>
+          <figure class="quote">
+            <blockquote>The status page alone saved our support team a hundred tickets during the last outage.</blockquote>
+            <figcaption><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Crect width='44' height='44' fill='%2337b24d'/%3E%3C/svg%3E">Omar Haddad, CTO at Lumen Books</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div><h4>Product</h4><ul><li>Monitors</li><li>Status pages</li><li>Integrations</li></ul></div>
+      <div><h4>Company</h4><ul><li>About</li><li>Careers</li><li>Blog</li></ul></div>
+      <div><h4>Resources</h4><ul><li>Docs</li><li>API</li><li>Changelog</li></ul></div>
+      <div class="footer-legal"><h4>Legal</h4><ul><li>Privacy</li><li>Terms</li><li>Security</li></ul></div>
+    </div>
+  </footer>
+
+  <dialog class="modal" id="demo-dialog">
+    <form class="modal-body" method="dialog">
+      <h2>Book a demo</h2>
+      <p>Tell us a little about your team and we will set up a thirty minute call.</p>
+      <label for="demo-name">Name</label>
+      <input id="demo-name" type="text">
+      <label for="demo-email">Work email</label>
+      <input id="demo-email" type="email">
+      <label for="demo-size">Team size</label>
+      <input id="demo-size" type="number">
+      <div class="modal-actions">
+        <button class="button button-secondary" value="cancel">Cancel</button>
+        <button class="button button-primary" value="submit">Request demo</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    document.getElementById('open-demo').addEventListener('click', () => {
+      document.getElementById('demo-dialog').showModal();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pricing - Ledgerly</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #1d2330;
+    background: #ffffff;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid #e6e8ee;
+  }
+  .brand { font-weight: 700; font-size: 20px; }
+  .topbar nav a {
+    margin-left: 24px;
+    color: #1d2330;
+    text-decoration: none;
+  }
+  .intro {
+    text-align: center;
+    padding: 56px 16px 32px;
+  }
+  .intro h1 { font-size: 40px; margin: 0 0 12px; }
+  .intro p { margin: 0; font-size: 18px; color: #4b5263; }
+  .intro .billing-note {
+    margin-top: 8px;
+    font-size: 14px;
+    color: #b4b8c0;
+  }
+  .plans {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+    padding: 24px 16px 64px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .plan {
+    flex: 1 0 400px;
+    max-width: 400px;
+    border: 1px solid #e6e8ee;
+    border-radius: 12px;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+  }
+  .plan.featured { border-color: #3056d3; box-shadow: 0 8px 24px rgba(48, 86, 211, 0.15); }
+  .plan h2 { margin: 0 0 8px; font-size: 22px; }
+  .plan .price { font-size: 36px; font-weight: 700; margin: 8px 0; }
+  .plan .price small { font-size: 16px; font-weight: 400; color: #4b5263; }
+  .plan ul { padding-left: 20px; margin: 16px 0 24px; line-height: 1.8; }
+  .plan .cta {
+    display: block;
+    text-align: center;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: #3056d3;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .plan .cta.secondary { background: #eef1fb; color: #3056d3; }
+  .faq {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 16px 80px;
+  }
+  .faq h2 { font-size: 28px; }
+  .faq details { border-top: 1px solid #e6e8ee; padding: 16px 0; }
+  .faq summary { font-weight: 600; cursor: pointer; }
+  footer {
+    border-top: 1px solid #e6e8ee;
+    padding: 24px 32px;
+    font-size: 14px;
+    color: #4b5263;
+  }
+  @media (max-width: 600px) {
+    .topbar nav { display: none; }
+    .intro h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Ledgerly</div>
+    <nav>
+      <a href="#">Product</a>
+      <a href="#">Pricing</a>
+      <a href="#">Customers</a>
+      <a href="#">Sign in</a>
+    </nav>
+  </header>
+
+  <section class="intro">
+    <h1>Simple pricing that grows with you</h1>
+    <p>Every plan includes unlimited invoices and bank sync.</p>
+    <p class="billing-note">Prices shown are billed annually. Taxes may apply.</p>
+  </section>
+
+  <section class="plans">
+    <article class="plan">
+      <h2>Starter</h2>
+      <p>For freelancers.</p>
+      <div class="price">$9 <small>/ month</small></div>
+      <ul>
+        <li>1 user</li>
+        <li>3 bank connections</li>
+        <li>Email support</li>
+      </ul>
+      <a class="cta secondary" href="#">Start free trial</a>
+    </article>
+
+    <article class="plan featured">
+      <h2>Team</h2>
+      <p>For small teams that need approvals, shared categories and a monthly close checklist.</p>
+      <div class="price">$29 <small>/ month</small></div>
+      <ul>
+        <li>5 users</li>
+        <li>Unlimited bank connections</li>
+        <li>Approval flows</li>
+        <li>Priority support</li>
+      </ul>
+      <a class="cta" href="#">Start free trial</a>
+    </article>
+
+    <article class="plan">
+      <h2>Business</h2>
+      <p>For finance departments.</p>
+      <div class="price">$79 <small>/ month</small></div>
+      <ul>
+        <li>Unlimited users</li>
+        <li>SSO and audit log</li>
+        <li>Dedicated manager</li>
+      </ul>
+      <a class="cta secondary" href="#">Talk to sales</a>
+    </article>
+  </section>
+
+  <section class="faq">
+    <h2>Questions</h2>
+    <details>
+      <summary>Can I switch plans later?</summary>
+      <p>Yes, upgrades apply immediately and downgrades at the next renewal.</p>
+    </details>
+    <details>
+      <summary>Do you offer discounts for nonprofits?</summary>
+      <p>We offer 40% off every plan for registered nonprofits.</p>
+    </details>
+    <details>
+      <summary>What happens when my trial ends?</summary>
+      <p>Your data stays. You can pick a plan any time within 60 days.</p>
+    </details>
+  </section>
+
+  <footer>
+    &copy; 2026 Ledgerly Inc. All rights reserved.
+  </footer>
+</body>
+</html>

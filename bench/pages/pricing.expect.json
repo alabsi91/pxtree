@@ -1,0 +1,30 @@
+{
+  "runs": {
+    "default": [],
+    "mobile": ["--viewport", "390x844"]
+  },
+  "bugs": [
+    {
+      "kind": "sibling misalignment",
+      "selector": ".plan .cta",
+      "run": "default",
+      "match": ["across siblings", "a.cta"],
+      "amended": "grammar rename during the run: cousins misaligned became X tops a..b across siblings",
+      "note": "the Team card has a longer blurb and one more feature, so its button sits lower than the other two"
+    },
+    {
+      "kind": "contrast",
+      "selector": ".billing-note",
+      "run": "default",
+      "match": ["contrast", "p.billing-note"],
+      "note": "#b4b8c0 on white"
+    },
+    {
+      "kind": "overflow at 390",
+      "selector": ".plan",
+      "run": "mobile",
+      "match": ["past viewport", "article.plan"],
+      "note": "plan cards have a 380px flex basis that does not shrink, wider than the 358px column"
+    }
+  ]
+}

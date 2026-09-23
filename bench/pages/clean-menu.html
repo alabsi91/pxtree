@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pinecrest Library - Events</title>
+<style>
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 80px; }
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.55;
+    color: #1f2a24;
+    background: #fdfdfb;
+  }
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 64px;
+    padding: 0 24px;
+    background: #fff;
+    border-bottom: 1px solid #e3e7e2;
+  }
+  .site-header strong { font-size: 19px; }
+  .desktop-nav a { margin-left: 20px; color: #1f2a24; text-decoration: none; }
+  .menu-toggle {
+    display: none;
+    width: 44px;
+    height: 44px;
+    border: 1px solid #d5dbd4;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 20px;
+  }
+  .drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 280px;
+    padding: 24px;
+    background: #fff;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.25s, visibility 0.25s;
+    z-index: 30;
+  }
+  .drawer.open { transform: none; visibility: visible; }
+  .drawer a { display: block; padding: 12px 0; color: #1f2a24; text-decoration: none; }
+  main {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+  main h1 { font-size: 36px; margin: 0 0 8px; }
+  .intro { color: #4d5a52; margin: 0 0 28px; }
+  .event {
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    gap: 20px;
+    padding: 20px 0;
+    border-top: 1px solid #e3e7e2;
+  }
+  .date {
+    text-align: center;
+    padding: 10px 0;
+    border-radius: 10px;
+    background: #eaf3ec;
+  }
+  .date .day { display: block; font-size: 28px; font-weight: 700; line-height: 1.1; }
+  .date .month { display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .event h2 { margin: 0 0 4px; font-size: 20px; }
+  .event p { margin: 0; color: #4d5a52; }
+  @media (max-width: 720px) {
+    .desktop-nav { display: none; }
+    .menu-toggle { display: block; }
+    .event { grid-template-columns: 64px 1fr; gap: 14px; }
+    main h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+  <header class="site-header">
+    <strong>Pinecrest Library</strong>
+    <nav class="desktop-nav">
+      <a href="#">Catalog</a>
+      <a href="#">Events</a>
+      <a href="#">Kids</a>
+      <a href="#">Visit</a>
+    </nav>
+    <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="drawer">&#9776;</button>
+  </header>
+
+  <nav class="drawer" id="drawer" aria-label="Main">
+    <a href="#">Catalog</a>
+    <a href="#">Events</a>
+    <a href="#">Kids</a>
+    <a href="#">Visit</a>
+  </nav>
+
+  <main>
+    <h1>Events this month</h1>
+    <p class="intro">All events are free and open to everyone. Registration helps us plan seating.</p>
+
+    <article class="event">
+      <div class="date"><span class="day">04</span><span class="month">Oct</span></div>
+      <div><h2>Toddler story time</h2><p>Songs, picture books and a craft for ages 1 to 3. Children's room, 10 am.</p></div>
+    </article>
+    <article class="event">
+      <div class="date"><span class="day">09</span><span class="month">Oct</span></div>
+      <div><h2>Repair cafe</h2><p>Bring a broken lamp, toaster or jacket. Volunteers fix it with you. Community hall, 2 pm.</p></div>
+    </article>
+    <article class="event">
+      <div class="date"><span class="day">15</span><span class="month">Oct</span></div>
+      <div><h2>Author talk: Mira Osei</h2><p>The novelist reads from her new book about three generations of lighthouse keepers.</p></div>
+    </article>
+    <article class="event">
+      <div class="date"><span class="day">22</span><span class="month">Oct</span></div>
+      <div><h2>Seed library swap</h2><p>Trade saved seeds from this summer's garden. Bring envelopes and labels.</p></div>
+    </article>
+    <article class="event">
+      <div class="date"><span class="day">30</span><span class="month">Oct</span></div>
+      <div><h2>Halloween craft night</h2><p>Paper lanterns and masks for all ages. Supplies provided.</p></div>
+    </article>
+  </main>
+
+  <script>
+    const drawer = document.getElementById('drawer');
+    document.querySelector('.menu-toggle').addEventListener('click', () => drawer.classList.toggle('open'));
+  </script>
+</body>
+</html>

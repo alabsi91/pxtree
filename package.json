@@ -1,0 +1,61 @@
+{
+  "name": "pxtree",
+  "version": "0.1.0",
+  "description": "Measures how a webpage actually renders and prints it as compact text for AI coding agents.",
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "agent-skills",
+    "ai-agents",
+    "playwright",
+    "chromium",
+    "layout",
+    "css",
+    "visual-testing"
+  ],
+  "homepage": "https://github.com/alabsi91/pxtree#readme",
+  "bugs": {
+    "url": "https://github.com/alabsi91/pxtree/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alabsi91/pxtree.git"
+  },
+  "license": "MIT",
+  "mcpName": "io.github.alabsi91/pxtree",
+  "type": "module",
+  "bin": {
+    "pxtree": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "server.json"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "playwright-core": "1.63.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.0",
+    "typescript": "^5.9.0"
+  }
+}

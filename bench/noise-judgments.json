@@ -1,0 +1,53 @@
+{
+  "blog": {
+    "overflows parent end 18: div.wrap code": "true and useful. The first SQL line is 18px wider than the pre at 1280 too, a real overflow I did not plant."
+  },
+  "carousel": {
+    "clipped out by div.viewport ×4: div.slide": "true. The four hidden slides, grouped on one line like the clean carousel. Context present: div.viewport [clips 1 of 1 children], div.track [translated x -800], section [role carousel].",
+    "overflows parent end 800: div.slide": "true but useless. The visible slide sticks out of the translated track, which is how every flex carousel is built. Dismissible from [translated x -800] on the track."
+  },
+  "chat": {
+    "text truncated ellipsis 49..173 ×3: span.preview": "true but useless. Thread previews are ellipsized on purpose.",
+    "text truncated ellipsis 17..141 ×3: span.preview": "true but useless. Same intended ellipsis at 390.",
+    "contrast 4.4 ×7, text #ffffff: div.bubble.mine": "true and useful, marginal. White on #2b6cff is 4.4, just under AA 4.5. Not planted.",
+    "covered 49% by strong: div#messages.messages div.bubble": "true and useful. The planted 390 drawer bug again, blamed on a child of the drawer instead of aside.threads.",
+    "covered bottom 16 by span.preview: div#messages.messages div.bubble": "true and useful. Same drawer bug, blamed on a child of the drawer."
+  },
+  "clean-carousel": {
+    "clipped right 212 by div.ticker: div.ticker-track span": "true. Marquee text entering the clip. Context present: [role marquee], [clips 1 of 1 children], [animating] on the track.",
+    "clipped out by div.ticker ×2: div.ticker-track span": "true. Marquee items waiting off to the right, grouped on one line. Same context tags present.",
+    "clipped out by div.carousel-window ×3: article.card": "true. The three hidden slides, grouped on one line. Context present: [role carousel], [clips 1 of 1 children], [translated x -912].",
+    "overflows parent end 912: article.card": "true but useless. The visible slide sticks out of the translated track. Dismissible from [translated x -912].",
+    "clipped right 83 by div.ticker: div.ticker-track span": "true. Marquee at 390, same context tags.",
+    "clipped out by div.ticker ×6: div.ticker-track span": "true. Marquee at 390, grouped, same context tags.",
+    "overflows parent end 342: article.card": "true but useless. Visible slide at 390, same as at 1280."
+  },
+  "clean-hero": {
+    "overflows parent start and end 120: section.bleed": "true but useless, and easy to misread. The full-bleed hero is intended. No [bleed] tag was printed, so only the code tells an agent it is deliberate.",
+    "overlaps img 12x40 ×4: div.avatars img": "true but useless. The avatar stack overlaps on purpose with negative margins. Nothing in the line says so."
+  },
+  "clean-menu": {
+    "19..28 wider than a ×2: nav.desktop-nav a": "true but useless. Text links are as wide as their words. A width outlier rule on inline text links is meaningless."
+  },
+  "dashboard": {
+    "past viewport end 161: div.layout main": "true and useful. This is the planted 390 stats-grid bug. main is the deepest box whose own box overflows its parent: the 1fr grid track grew to the min-content of the stats grid, and section.stats (519 wide) still fits inside main (551). The tree shows the stats grid and its nowrap values. Scored as a miss because the expectation names the stats grid."
+  },
+  "hero": {
+    "overflows parent start and end 80: section.hero": "true but useless. The intended full-bleed hero, same as clean-hero.",
+    "overflows parent start 41: div.logo-item": "true and useful. The planted 390 logo-row bug, second line for it."
+  },
+  "modal": {
+    "covered 100% by div#overlay.overlay.open (translucent) ×6: header.topbar strong, button#invite.btn.primary, main.content h1 +2": "true but useless. The page behind a div modal is under its backdrop. The tool treats only native modal dialogs as modal, so it does not fold the background away.",
+    "covered 100% by div.modal: div.board": "true but useless. Same, a board card behind the modal."
+  },
+  "nav-dropdown": {
+    "clipped top 1 by header.site-header ×5: li.has-menu a, ul.nav-links a, li.new a": "true but useless. Link padding boxes are 66px in a 64px header, 1px of padding is cut, text is intact.",
+    "clipped bottom 1 by header.site-header ×5: li.has-menu a, ul.nav-links a, li.new a": "true but useless. Same 1px of padding.",
+    "clipped top 1 by header.site-header ×3: li.has-menu a, ul.nav-links a": "true but useless. Same 1px at 390.",
+    "clipped bottom 1 by header.site-header ×3: li.has-menu a, ul.nav-links a": "true but useless. Same 1px at 390."
+  },
+  "pricing": {
+    "overflows parent start 5 ×3: article.plan, article.plan.featured": "true and useful. The planted 390 plan-card overflow, the left side of it.",
+    "div.price tops 129..151 across siblings: section.plans": "true and useful. This is the planted Team-card misalignment. The longer blurb pushes the price down first, and the button moves with it. The expectation names a.cta, the last part that moves, so it scores as a miss."
+  }
+}

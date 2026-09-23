@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fieldwork Coffee - Seasonal menu</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+    color: #231c16;
+    background: #fbf7f1;
+  }
+  .ticker {
+    overflow: hidden;
+    background: #231c16;
+    color: #fbf7f1;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .ticker-track {
+    display: inline-flex;
+    gap: 48px;
+    padding: 10px 0;
+    animation: ticker 30s linear infinite;
+  }
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  .ticker-track span { flex-shrink: 0; }
+  header.intro {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 24px 16px;
+  }
+  header.intro h1 { font-size: 40px; margin: 0; }
+  header.intro p { color: #5b4f44; margin: 8px 0 0; font-size: 18px; }
+  .carousel {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .carousel-window {
+    overflow: hidden;
+    border-radius: 14px;
+  }
+  .carousel-track {
+    display: flex;
+    transform: translateX(-100%);
+    transition: transform 0.35s ease;
+  }
+  .card {
+    flex: 0 0 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: #fff;
+  }
+  .card img {
+    display: block;
+    width: 100%;
+    height: 300px;
+    object-fit: cover;
+  }
+  .card .body { padding: 28px; }
+  .card h2 { margin: 0 0 8px; font-size: 26px; }
+  .card p { margin: 0 0 12px; color: #5b4f44; line-height: 1.5; }
+  .card .price { font-weight: 700; font-size: 20px; }
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .controls button {
+    width: 44px;
+    height: 44px;
+    border: 1px solid #d9cfc2;
+    border-radius: 50%;
+    background: #fff;
+    font-size: 18px;
+  }
+  .pager {
+    display: flex;
+    gap: 0;
+  }
+  .pager button {
+    width: 28px;
+    height: 28px;
+    border: 0;
+    background: none;
+    padding: 0;
+    display: grid;
+    place-items: center;
+  }
+  .pager button::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #b9ab98;
+  }
+  .pager button[aria-current="true"]::before { background: #231c16; }
+  @media (max-width: 640px) {
+    .card { grid-template-columns: 1fr; }
+    .card img { height: 200px; }
+    header.intro h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+  <div class="ticker" role="marquee" aria-label="Announcements">
+    <div class="ticker-track">
+      <span>Free delivery on orders over $30</span>
+      <span>New: Ethiopian Guji single origin</span>
+      <span>Open until 9 pm on Fridays</span>
+      <span>Bring your own cup, save 50 cents</span>
+      <span>Free delivery on orders over $30</span>
+      <span>New: Ethiopian Guji single origin</span>
+      <span>Open until 9 pm on Fridays</span>
+      <span>Bring your own cup, save 50 cents</span>
+    </div>
+  </div>
+
+  <header class="intro">
+    <h1>Autumn menu</h1>
+    <p>Four drinks we are pouring until the first snow.</p>
+  </header>
+
+  <section class="carousel" aria-roledescription="carousel" aria-label="Seasonal drinks">
+    <div class="carousel-window">
+      <div class="carousel-track">
+        <article class="card" aria-roledescription="slide">
+          <img src="img/hero.png" alt="Maple latte">
+          <div class="body"><h2>Maple latte</h2><p>Double shot, steamed oat milk and a spoon of Vermont maple.</p><div class="price">$5.40</div></div>
+        </article>
+        <article class="card" aria-roledescription="slide">
+          <img src="img/hero.png" alt="Chai cortado">
+          <div class="body"><h2>Chai cortado</h2><p>House chai concentrate cut with a ristretto.</p><div class="price">$4.90</div></div>
+        </article>
+        <article class="card" aria-roledescription="slide">
+          <img src="img/hero.png" alt="Cold brew tonic">
+          <div class="body"><h2>Cold brew tonic</h2><p>Eighteen hour cold brew over tonic and orange peel.</p><div class="price">$5.10</div></div>
+        </article>
+        <article class="card" aria-roledescription="slide">
+          <img src="img/hero.png" alt="Hot cider">
+          <div class="body"><h2>Hot cider</h2><p>Local apples, cinnamon and a slice of ginger.</p><div class="price">$4.20</div></div>
+        </article>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" aria-label="Previous">&#8249;</button>
+      <div class="pager">
+        <button type="button" aria-label="Slide 1"></button>
+        <button type="button" aria-label="Slide 2" aria-current="true"></button>
+        <button type="button" aria-label="Slide 3"></button>
+        <button type="button" aria-label="Slide 4"></button>
+      </div>
+      <button type="button" aria-label="Next">&#8250;</button>
+    </div>
+  </section>
+</body>
+</html>

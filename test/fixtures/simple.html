@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>simple</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        font-size: 16px;
+        line-height: 24px;
+        color: #111111;
+        background: #ffffff;
+      }
+      .site {
+        display: flex;
+        align-items: center;
+        gap: 48px;
+        padding: 12px 24px;
+        background: #f3f4f6;
+        border-bottom: 1px solid #d1d5db;
+      }
+      .logo {
+        font-size: 20px;
+        line-height: 40px;
+        font-weight: 700;
+        color: #111111;
+        text-decoration: none;
+      }
+      nav {
+        display: flex;
+        gap: 24px;
+      }
+      nav a {
+        line-height: 40px;
+        color: #111111;
+        text-decoration: none;
+      }
+      .hero {
+        padding: 64px 120px;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 40px;
+        line-height: 48px;
+      }
+      .lead {
+        margin: 0;
+        font-size: 18px;
+        line-height: 28px;
+      }
+      .cards {
+        display: flex;
+        gap: 32px;
+        margin: 0;
+        padding: 0 120px 64px;
+        list-style: none;
+      }
+      .card {
+        flex: 1;
+        padding: 16px;
+        background: #ffffff;
+        border: 1px solid #d1d5db;
+      }
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 20px;
+        line-height: 28px;
+      }
+      .card p {
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site">
+      <a class="logo" href="#">Acme</a>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#docs">Docs</a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero">
+        <h1>Ship faster</h1>
+        <p class="lead">Measure every layout in one run.</p>
+      </section>
+      <ul class="cards">
+        <li class="card">
+          <h3>Fast</h3>
+          <p>Runs in one second.</p>
+        </li>
+        <li class="card">
+          <h3>Small</h3>
+          <p>Prints one line each.</p>
+        </li>
+        <li class="card">
+          <h3>Clear</h3>
+          <p>Says what is wrong.</p>
+        </li>
+      </ul>
+    </main>
+  </body>
+</html>

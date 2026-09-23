@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>off-center</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: sans-serif;
+        font-size: 16px;
+      }
+
+      section {
+        display: flex;
+        gap: 24px;
+        align-items: flex-start;
+        margin-bottom: 24px;
+      }
+
+      .icon-button,
+      .centered-button {
+        display: flex;
+        box-sizing: border-box;
+        width: 40px;
+        height: 40px;
+        padding: 8px;
+        border: 0;
+        background: #d1d5db;
+      }
+
+      .icon-button {
+        align-items: flex-start;
+        justify-content: center;
+        padding: 0;
+      }
+
+      .icon-button .icon {
+        position: relative;
+        top: 8px;
+      }
+
+      .centered-button {
+        align-items: center;
+      }
+
+      .icon,
+      .centered-icon {
+        display: block;
+        width: 24px;
+        height: 21px;
+        background: #111827;
+      }
+
+      .low-text {
+        display: flex;
+        align-items: flex-end;
+        box-sizing: border-box;
+        width: 120px;
+        height: 40px;
+        padding: 8px 16px;
+        line-height: 16px;
+        color: #111827;
+        background: #d1d5db;
+        text-decoration: none;
+      }
+
+      .card {
+        width: 240px;
+        padding: 24px 16px 8px;
+        background: #f3f4f6;
+      }
+
+      .card p {
+        margin: 0;
+      }
+
+      .margin-card {
+        width: 240px;
+        padding: 16px;
+        background: #f3f4f6;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="buttons">
+      <button class="icon-button" type="button"><span class="icon"></span></button>
+      <button class="centered-button" type="button"><span class="centered-icon"></span></button>
+      <a class="low-text" href="#delete">Delete</a>
+    </section>
+    <section class="cards">
+      <div class="card"><p>Asymmetric padding on purpose.</p></div>
+      <div class="margin-card"><h3>Default margins</h3><p>The heading and paragraph keep their browser margins.</p></div>
+    </section>
+  </body>
+</html>
