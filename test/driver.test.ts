@@ -37,6 +37,13 @@ function getPngSize(pngPath: string): { width: number; height: number } {
   return { width: pngBytes.readUInt32BE(16), height: pngBytes.readUInt32BE(20) };
 }
 
+test('a second measure while one runs throws', async () => {
+  const firstMeasure = session.measure(getFixtureUrl('state.html'), { cacheDirectory: null });
+
+  await assert.rejects(session.measure(getFixtureUrl('state.html'), { cacheDirectory: null }), { message: 'measure already running, await the previous call' });
+  assert.equal((await firstMeasure).error, null);
+});
+
 test('state: the menu prints only after the script clicks it open', async () => {
   const closedLines = await formatFixture(session, 'state');
   assert.equal(hasLineStartingWith(closedLines, 'ul.menu'), false);

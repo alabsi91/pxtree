@@ -6,13 +6,14 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { skillBodyText } from './guide.ts';
 import { createSession, format, getTargetUrl, type MeasureOptions, type Session } from './index.ts';
 
-const measureToolDescription = `Measures how a webpage actually renders in headless Chromium and returns it as compact text: a facts line, changes since the last run, a summary of findings, then one line per element as an indented tree. Findings are measurements that passed a threshold, never verdicts.
+const measureToolDescription = `Measures how a webpage renders in headless Chromium and returns compact text: a facts line, changes since the last run, a findings summary, then an indented tree, one line per element. Findings are measurements that passed a threshold, never verdicts.
 
-Parameters: target (URL, localhost:5173-style host, or HTML file path), viewports, schemes, scroll, element, children, colors, wait, script (Playwright page code), screenshot, timeout, diff, diffKey, report (tree, findings, summary, changes or none), aria (names, roles, states). One call can return the report, the aria tree and a screenshot together.
+Parameters: target (URL, host or HTML file path), viewports, schemes, scroll, element, children, colors, wait, script (Playwright page code), screenshot, timeout, diff, diffKey, report (tree, findings, summary, changes or none), aria (names, roles, states). One call returns the report, aria tree and screenshot for every viewport, scheme and scroll stop. Never split a question into parallel calls: one browser page, calls run one at a time.
 
 Call read_me_first once per session before the first measure to learn the tags and findings.`;
 
@@ -104,30 +105,40 @@ function isAllowedTarget(target: string): boolean {
   return !isOutside;
 }
 
+/** Measure calls run one after another in arrival order, because the session measures one page at a time. */
 function registerMeasureTool(server: McpServer, session: Session): void {
-  server.registerTool('measure', { description: measureToolDescription, inputSchema: measureInputSchema }, async (input) => {
-    if (input.report === 'none' && input.aria !== true && input.screenshot !== true) {
-      return { isError: true, content: [{ type: 'text', text: 'report none prints nothing without aria or screenshot' }] };
-    }
+  let previousMeasureCall: Promise<unknown> = Promise.resolve();
 
-    if (!isAllowedTarget(input.target)) {
-      return { isError: true, content: [{ type: 'text', text: `file target outside the working directory: ${input.target}` }] };
-    }
+  server.registerTool('measure', { description: measureToolDescription, inputSchema: measureInputSchema }, (input) => {
+    const measureCall = previousMeasureCall.then(() => measureInSession(session, input));
+    previousMeasureCall = measureCall.catch(() => {});
 
-    const result = await session.measure(input.target, await createMeasureOptions(input));
-    if (result.error !== null) {
-      return { isError: true, content: [{ type: 'text', text: result.error.message }] };
-    }
-
-    const reportText = format(result, { shouldShowColors: input.colors, report: input.report });
-    const reportContent = [{ type: 'text' as const, text: reportText }];
-    const screenshotPaths = result.runs.flatMap((run) => (run.screenshotPath === null ? [] : [run.screenshotPath]));
-    if (screenshotPaths.length > 0) {
-      reportContent.push({ type: 'text', text: screenshotPaths.map((screenshotPath) => `screenshot: ${screenshotPath}`).join('\n') });
-    }
-
-    return { content: reportContent };
+    return measureCall;
   });
+}
+
+async function measureInSession(session: Session, input: MeasureInput): Promise<CallToolResult> {
+  if (input.report === 'none' && input.aria !== true && input.screenshot !== true) {
+    return { isError: true, content: [{ type: 'text', text: 'report none prints nothing without aria or screenshot' }] };
+  }
+
+  if (!isAllowedTarget(input.target)) {
+    return { isError: true, content: [{ type: 'text', text: `file target outside the working directory: ${input.target}` }] };
+  }
+
+  const result = await session.measure(input.target, await createMeasureOptions(input));
+  if (result.error !== null) {
+    return { isError: true, content: [{ type: 'text', text: result.error.message }] };
+  }
+
+  const reportText = format(result, { shouldShowColors: input.colors, report: input.report });
+  const reportContent = [{ type: 'text' as const, text: reportText }];
+  const screenshotPaths = result.runs.flatMap((run) => (run.screenshotPath === null ? [] : [run.screenshotPath]));
+  if (screenshotPaths.length > 0) {
+    reportContent.push({ type: 'text', text: screenshotPaths.map((screenshotPath) => `screenshot: ${screenshotPath}`).join('\n') });
+  }
+
+  return { content: reportContent };
 }
 
 function registerReadMeFirstTool(server: McpServer): void {

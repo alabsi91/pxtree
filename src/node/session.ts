@@ -387,7 +387,23 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
     return browserPromise;
   }
 
+  let isMeasureRunning = false;
+
   async function measure(target: string, options: MeasureOptions = {}): Promise<MeasureResult> {
+    if (isMeasureRunning) {
+      throw new Error('measure already running, await the previous call');
+    }
+
+    isMeasureRunning = true;
+
+    try {
+      return await measureTarget(target, options);
+    } finally {
+      isMeasureRunning = false;
+    }
+  }
+
+  async function measureTarget(target: string, options: MeasureOptions): Promise<MeasureResult> {
     const url = getTargetUrl(target);
     const runs: RunResult[] = [];
 

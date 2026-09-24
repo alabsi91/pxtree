@@ -230,7 +230,7 @@ test('guide prints the reading guide and writes no files', async () => {
 
   assert.equal(output.exitCode, 0, output.stderr);
   assert.equal(output.stdout, readingGuideText);
-  assert.ok(readingGuideText.split('\n').length <= 120);
+  assert.ok(readingGuideText.split('\n').length <= 110);
   assert.deepEqual(readdirSync(guideDirectory), []);
 });
 

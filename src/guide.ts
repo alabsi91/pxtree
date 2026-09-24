@@ -1,182 +1,136 @@
+const purposeText = `# pxtree: the rendered page as text
+
+pxtree loads a page in headless Chromium and prints what rendered: pixel sizes and positions after transforms, what paints, what is clipped, covered, off center or truncated, and text contrast. One line per element, indented as a tree, findings on top. It never repeats CSS or attributes, so read the source for those. Use it after changing markup or CSS, instead of a screenshot or a DOM snapshot. The target is a URL, a host like \`localhost:5173\` (gets http://) or an HTML file path.
+
+`;
+
 /** How to report to the user after measuring. The guide and the skill file print it near their top. */
-export const reportingRulesText = `Findings are measurements, not verdicts. Judge each one against the code and the design intent, then reply to the user in one of two shapes and nothing else. Never explain why a finding was fine. If you judged it, the user does not hear about it. Never paste the tool output.
-- Nothing to change: one line, \`Landing page is clean at 390, 768 and 1280, light and dark.\` Then one line per side effect, \`Docs dev server left running on :3000.\` No ratios, no finding names, no list of what you judged intentional, no description of what was measured.
+export const reportingRulesText = `## Reporting to the user
+
+Findings are measurements, not verdicts. Judge each against the code and the design intent, then reply in one of two shapes and nothing else. Never paste the tool output. Never mention a finding you judged fine, or why.
+- Nothing to change: one line, \`Landing page is clean at 390, 768 and 1280, light and dark.\` Then one line per side effect, \`Docs dev server left running on :3000.\` No ratios, finding names, list of what you judged intentional or description of what was measured.
 - Changes made: one line per change, what and where. Then one line per decision the user must make.
 
 `;
 
-const guideIntroductionText = `# pxtree: the rendered page as text
+const workflowText = `## Workflow
 
-pxtree loads a page in headless Chromium and prints what actually rendered: pixel sizes and positions after transforms, what paints, what is clipped, covered, off center or truncated, and text contrast. One line per element, indented as a tree, findings on top. It never repeats CSS or attributes: read the source for those. Use it after changing markup or CSS, instead of a screenshot or a DOM snapshot.
+On 47 planted bugs, pxtree text against a viewport screenshot found tap targets 5 of 6 (screenshot 1), overflow hidden clipping, a dropdown cut by its header included, 3 of 3 (0), contrast in light or dark 4 of 4 (3), content under a fixed or sticky bar 3 of 3 (2), overflow at 390 4 of 4 and cut dialogs 2 of 2. A run costs about 540 tokens, 60 with \`--report summary\`, and a 1280x800 screenshot about 1100. It is weak at centering (2 of 4, it missed a label at the top of a tall button and a glyph nudged 4 px), at a responsive rule that squeezes a layout (3 of 4, the screenshot 4), and at a big data table read whole (about 1300 tokens).
 
-Target: a URL, a host like \`localhost:5173\` (gets http://) or an HTML file path.
+1. Check that the dev server answers (\`curl -sI localhost:5173\`). A down server costs a run that prints only \`could not load\`.
+2. Ask for every viewport, scheme and scroll stop in one call, like \`--viewport 390,1280 --scheme light,dark --scroll 0,'#pricing',end\`. Never split one question into parallel calls, because over MCP there is one browser page and calls run one at a time. For several pages, one process per page is fine.
+3. Start with \`--report summary\`, then on a big page \`--report findings\`, then \`--element '<selector>'\` for one area. Tree tags like \`[clipped out by …]\` are measurements too, so read the tree where the summary points before acting. Fix what the code shows is a bug, then check with \`--report changes\` that \`since last run\` shows the change you meant.
+4. Add \`--aria\` for names, roles, states, labels, reading order or what a screen reader gets.
+5. Take one \`--report none --screenshot shot.png\` last, only if the text leaves a doubt.
+6. Prototype a fix with \`--script "await page.addStyleTag(…)"\` and give it and a plain baseline run the same \`--diff-key base\`.
+7. Text wraps unexpectedly: \`--element 'h1' --viewport 1280,1440,1920 --report tree\`, then read \`N lines, W on one line\` against the element's width.
 
 `;
 
-const guideReferenceText = `## Flags
+const flagsText = `## Flags
 
---viewport 390x844,1280x800     one measurement per size (default 1280x800); a width alone like 390 gets its device height
---scheme light,dark             prefers-color-scheme (default light)
---dpr 2                         device pixel ratio (default 1)
---scroll 0,'#pricing',end       scroll stops, one run each: a y offset, a selector (goes to the top of the viewport) or end (the bottom); the script runs once, at the first stop
---script "await page.click('text=Menu')"   Playwright page code run before measuring; or a file whose default export is async (page) => {}
---wait 500 | '.menu'            after the script: sleep ms, or wait until the selector is visible
---element '.card'               print only matches and their ancestor lines; facts, summary and since last run stay page-wide
---no-children                   with --element, drop what is inside the matches
---colors                        hex colors in [text] and [renders]
---report summary                tree (default, everything) | findings (only lines with findings, under their ancestors' names) | summary (no tree) | changes (facts and since last run, to check a fix) | none (facts line only)
---aria                          add the aria tree after the report; with --element one per match, always the whole subtree, even with --no-children
---screenshot shot.png           PNG of the viewport, clipped to the element with one --element match; the facts line ends with its path and pixel size
---json                          the raw measurement JSON instead of text
---out ./pxtree-out              write pxtree.txt and pxtree.json, print only facts and summary
---timeout 60000                 ms to reach DOMContentLoaded (default 30000); the measurement gets what is left of it after loading
---channel chrome                use an installed browser
---no-reveal                     skip the scroll pass that fires lazy-load and reveal-on-scroll
---no-diff                       skip the since-last-run comparison
---diff-key base                 since last run keys on this name instead of script and wait: a --script fix compares with a plain run of the same key
+\`npx -y pxtree@latest <target> [flags]\`. The MCP \`measure\` tool takes \`target\` and the flags as inputs. A dash means CLI only.
 
-Names, roles and labels are the aria tree's job. Sizes and positions are the measurement's. Add --aria when you check accessible names, roles, states, labels, reading order or what a screen reader gets. It carries no geometry.
-One call can hold all three: \`--report summary --aria --screenshot shot.png\`. \`--report none --aria\` is the aria tree alone, \`--report none --screenshot shot.png\` a pure screenshot. With --no-diff too, \`none\` skips the measurement and the facts line says \`not measured\`.
+| CLI flag | MCP input | meaning |
+|---|---|---|
+| \`--viewport 390x844,1280x800\` | \`viewports: [{ width, height }]\` | one run per size, default 1280x800. A width alone gets its device height |
+| \`--scheme light,dark\` | \`schemes\` | prefers-color-scheme, default light |
+| \`--dpr 2\` | - | device pixel ratio, default 1 |
+| \`--scroll 0,'#pricing',end\` | \`scroll\` | one run per stop: a y offset, a selector (to the viewport top) or \`end\`. Default 0 |
+| \`--script "await page.click('text=Menu')"\` | \`script\` | Playwright page code for a state (open menu, dialog, hover), run once at the first stop. The CLI also takes a file that exports \`async (page) => {}\` |
+| \`--wait 500\` or \`'.menu'\` | \`wait\` | after the script, sleep ms or wait until the selector is visible |
+| \`--element '.card'\` | \`element\` | print only matches and their ancestor lines. Facts, summary and since last run stay page-wide |
+| \`--no-children\` | \`children: false\` | with element, drop what is inside the matches |
+| \`--colors\` | \`colors\` | hex colors in \`[text]\` and \`[renders]\` |
+| \`--report summary\` | \`report\` | \`tree\` (default), \`findings\` (lines with findings, under their ancestors' names), \`summary\` (no tree), \`changes\` (facts, since last run), \`none\` (facts) |
+| \`--aria\` | \`aria\` | the aria tree after the report, one per element match, always the whole subtree |
+| \`--screenshot shot.png\` | \`screenshot: true\` | PNG of the viewport, clipped to a single element match. MCP saves it in the OS temp directory |
+| \`--json\` | - | the raw measurement JSON |
+| \`--out ./pxtree-out\` | - | write pxtree.txt and pxtree.json, print facts and summary |
+| \`--timeout 60000\` | \`timeout\` | ms to reach DOMContentLoaded, default 30000. Measuring gets what is left |
+| \`--channel chrome\` | - | use an installed browser |
+| \`--no-reveal\` | - | skip the scroll pass that fires lazy-load and reveal-on-scroll |
+| \`--no-diff\` | \`diff: false\` | skip since last run |
+| \`--diff-key base\` | \`diffKey\` | key since last run on this name instead of script and wait |
 
-## Output, per viewport and scheme
+The aria tree has names, roles and labels and no geometry. One call can hold all three, \`--report summary --aria --screenshot shot.png\`. \`--report none --aria\` is the aria tree alone, \`--report none --screenshot shot.png\` a pure screenshot. With --no-diff too, \`none\` skips measuring and the facts line says \`not measured\`.
 
-Line 1, facts: \`1280x800 light dpr 1 ltr scroll 0/1450 page 1280x2250 painted to 2210\` = viewport, scheme, dpr, direction (\`rtl (start is right)\`), scroll y/max, document size, lowest painted pixel. Then page facts when true: \`status 404\`, \`redirected to <url>\`, \`sideways 14 by a.more\` (page scrolls sideways by 14, the widest \`past viewport\` element causes it), \`scroll locked\`, \`window does not scroll, main scrolls y 2400 in 800\` (an app shell: scroll inside main with --scroll '<selector>'), \`page unchanged by script\` (DOM, control values, top layer and scroll offsets are as before the script; a CSS :hover or :focus state does not count), \`top layer: dialog#x modal, div.menu popover\`, \`still moving div.x\` (never settled), \`font "Inter" not used, drew Arial\` (a web font of the page did not draw the text), \`font failed Inter\`, \`coverage sampled partly\`, \`stopped at 20000 elements\`, \`screenshot shot.png 1280x800\`.
-\`since last run:\` changes against the previous run with the same url, size, scheme, scroll, script and wait (or the same --diff-key), in document order. \`~\` changed, \`+\` new, \`-\` gone. \`~ 12 boxes from body>main>section down moved 44 down\`: boxes that only moved, all by the same amount. \`findings gone: text overflows end 30\`: a finding that went away.
-\`summary:\` each finding once, with its amount range, \`×count\` and up to three element names. A bare tag gets its nearest uniquely named ancestor in front: \`div.footer-legal li\`. A name that siblings share gets its position among them: \`section.claims p 3 of 5\`. While a modal is open, the inert page behind it has no findings and the summary ends with \`3 findings behind the modal not listed\` (--element on something behind it prints its findings).
-A second scheme whose tree matches the first except for findings and colors prints \`tree: same as light, differences:\` and only the lines whose findings differ, and \`summary: same as light\` when its summary is the same. A later scroll stop whose tree matches the previous stop prints \`tree: same as scroll 0, differences:\` the same way. Runs at other viewports print in full, one block each.
-\`aria:\` with --aria, after the report: Playwright's aria snapshot as YAML, taken in the measured state (after --script, --scroll and --wait). Roles, names, states like \`[checked]\` or \`[expanded]\`, text, in reading order. \`aria: none\` when it is empty. \`aria .item match 2 of 3:\` heads each of several --element matches, \`none (not rendered)\` or \`none (not painted)\` says why one is empty. \`aria: same as light\` when a second scheme has the same tree.
-Tree lines: \`name "text" WxH @x,y [tags][!! findings] ×N\` (bracket groups follow each other with no space)
-- name is tag#id.class.class (generated ids and hashed or utility classes dropped); "text" is the start of its own text.
-- WxH is the border box after transforms. @x,y is from the parent's content box, x from the start edge (the right edge in rtl). No @ means 0,0.
-- Two spaces of indent per depth. Wrapper boxes of the same size join as \`div.a › div.b › a.link\`.
-- \`×N\` N identical siblings. \`…×N similar li.item 300x120..300x180\` N more same-name siblings, sizes as a range. \`…×N similar with the same findings\` N more siblings whose findings match the line above, numbers aside; the summary counts them all.
-- No tag means nothing to say. Hidden things are simply absent (display none, closed details, closed dialogs).
+`;
+
+const readingText = `## Output, per viewport, scheme and scroll stop
+
+Facts: \`1280x800 light dpr 1 ltr scroll 0/1450 page 1280x2250 painted to 2210\` is viewport, scheme, dpr, direction (\`rtl (start is right)\`), scroll y/max, document size and lowest painted pixel. Then, when true: \`status 404\`, \`redirected to <url>\`, \`sideways 14 by a.more\` (the widest \`past viewport\` element), \`scroll locked\`, \`window does not scroll, main scrolls y 2400 in 800\` (an app shell, use \`--scroll '<selector>'\`), \`page unchanged by script\` (DOM, control values, top layer and scroll offsets, not :hover or :focus), \`top layer: dialog#x modal, div.menu popover\`, \`still moving div.x\` (never settled), \`font "Inter" not used, drew Arial\` (a page web font drew no text), \`font failed Inter\`, \`coverage sampled partly\`, \`stopped at 20000 elements\`, \`screenshot shot.png 1280x800\` (path and pixel size).
+\`since last run:\` changes against the last run with the same url, size, scheme, dpr, scroll, script and wait (or diff key), in document order. \`~\` changed, \`+\` new, \`-\` gone. \`~ 12 boxes from body>main>section down moved 44 down\` only moved, all by the same amount. \`findings gone: text overflows end 30\` went away.
+\`summary:\` each finding once with its amount range, \`×count\` and up to three names. A bare tag gets its nearest uniquely named ancestor, \`div.footer-legal li\`. A name siblings share gets its position, \`section.claims p 3 of 5\`. While a modal is open, the inert page behind it has no findings and the summary ends \`3 findings behind the modal not listed\` (\`--element\` on it prints them).
+A second scheme whose tree differs only in findings and colors prints \`tree: same as light, differences:\` and only the lines whose findings differ, and \`summary: same as light\` when it matches. A later scroll stop does the same against the previous one, \`tree: same as scroll 0, differences:\`. Other viewports print in full.
+\`aria:\` Playwright's aria snapshot as YAML in the measured state (after script, scroll and wait): roles, names, states like \`[checked]\`, text in reading order. \`aria: none\` when empty. \`aria .item match 2 of 3:\` heads each element match, \`none (not rendered)\` or \`none (not painted)\` says why one is empty. \`aria: same as light\` for a second scheme with the same tree.
+
+Tree line: \`name "text" WxH @x,y [tags][!! findings] ×N\`.
+- name is tag#id.class, generated ids and hashed or utility classes dropped. "text" is the start of its own text.
+- WxH is the border box after transforms. @x,y is from the parent's content box, x from the start edge (right in rtl). No @ means 0,0.
+- Two spaces of indent per depth. Same-size wrappers join as \`div.a › div.b › a.link\`.
+- \`×N\` N identical siblings. \`…×N similar li.item 300x120..300x180\` N more same-name siblings, sizes as a range. \`…×N similar with the same findings\` N more whose findings match the line above, numbers aside. The summary counts them all.
+- No tag means nothing to say. Hidden things (display none, closed details or dialogs) are absent.
 
 ## Tags
 
-[fixed]                          @x,y is from the viewport
-[stuck]                          sticky element currently moved from its flow position
-[top layer modal|popover|fullscreen]   top-layer root, printed after body, @x,y from the viewport
-[rtl] / [ltr]                    direction differs from the parent
-[rotated 30° from 100x20]        WxH is the upright bounding box, from = layout size
-[scaled 1.50 from 100x20]        same, for scale
-[translated x -320]              its transform only moves it, by these px (x, y or both)
-[animating]                      a running, paused infinite, or scroll-driven animation targets it; findings on it or inside it end with (mid animation), one frame of a moving state
-[role carousel] [role marquee]   from role or aria-roledescription
-[not painted: opacity 0]         opacity 0, children not walked
-[not painted: visibility hidden] paints nothing and has no findings, wherever it sits; children can still show
-[content skipped]                content-visibility skipped its content
-[sr-only]                        screen-reader-only box: clipped content at most 1 px on an axis, or clipped away; its text counts nowhere
-[clipped out by div.x]           fully outside an ancestor's clip; text and controls get the finding instead
-[offscreen]                      parked where no scroll can reach
-[scroll y 568 in 300 at 120, 15 of 25 out]   scroll box: content size, visible size, offset, children fully out of view
-[clips 5 of 8 children]          its overflow hidden or clip cuts 5 of its 8 children fully or partly
-[pad 16 8]                       padding in CSS shorthand order
-[gaps 24] [gaps across 16]       space between children stacked / side by side; \`free 110 at end\` is unused space; several values when they differ
-[text 16/24, 2 lines, 559 on one line]   font size / line height px; \`W on one line\` is the width of wrapped text laid out unwrapped (not across a br or kept newline, first 200 per page); \`on image\` when the background is unknown; \`fill transparent\` for gradient or transparent text; with --colors \`#e6edf3 on #1e2530, contrast 13.0\`
-[renders background, border-bottom, shadow]   what the box itself paints; also outline, image, control, ::before, ::after
-[shadow root] [shadow root closed] [slotted]   shadow host; light-DOM child drawn through a slot
-[over 100000 px]                 over 100000 px on one axis
-[frame not walked]               iframe, measure its URL on its own
-[children skipped 12]            children not printed
-[behind modal, 214 elements not printed]   on body while a modal is open
+- \`[fixed]\` @x,y is from the viewport. \`[stuck]\` sticky and moved from its flow position
+- \`[top layer modal|popover|fullscreen]\` top-layer root, printed after body, @x,y from the viewport
+- \`[rtl]\` \`[ltr]\` direction differs from the parent
+- \`[rotated 30° from 100x20]\` \`[scaled 1.50 from 100x20]\` WxH is the upright bounding box, from is the layout size
+- \`[translated x -320]\` its transform only moves it, by these px (x, y or both)
+- \`[animating]\` a running, paused infinite or scroll-driven animation targets it. Findings on or inside it end \`(mid animation)\`, one frame of a moving state
+- \`[role carousel]\` \`[role marquee]\` from role or aria-roledescription
+- \`[not painted: opacity 0]\` children not walked. \`[not painted: visibility hidden]\` paints nothing, no findings, children can still show
+- \`[content skipped]\` by content-visibility
+- \`[sr-only]\` clipped to at most 1 px on an axis, or away. Its text counts nowhere
+- \`[clipped out by div.x]\` fully outside an ancestor's clip. Text and controls get the finding instead
+- \`[offscreen]\` parked where no scroll can reach
+- \`[scroll y 568 in 300 at 120, 15 of 25 out]\` scroll box: content size, visible size, offset, children fully out of view
+- \`[clips 5 of 8 children]\` its overflow or clip cuts 5 of its 8 children, fully or partly
+- \`[pad 16 8]\` padding in shorthand order
+- \`[gaps 24]\` \`[gaps across 16]\` space between stacked or side-by-side children, several values when they differ. \`free 110 at end\` is unused space
+- \`[text 16/24, 2 lines, 559 on one line]\` font size / line height px, and the width unwrapped (not across a br or kept newline, first 200 per page). \`on image\` when the background is unknown, \`fill transparent\` for gradient or transparent text. With colors \`#e6edf3 on #1e2530, contrast 13.0\`
+- \`[renders background, border-bottom, shadow]\` what the box itself paints, also outline, image, control, ::before, ::after
+- \`[shadow root]\` \`[shadow root closed]\` shadow host. \`[slotted]\` light-DOM child drawn through a slot
+- \`[frame not walked]\` iframe, measure its URL on its own. \`[children skipped 12]\` children not printed. \`[over 100000 px]\` on one axis
+- \`[behind modal, 214 elements not printed]\` on body while a modal is open
 
 ## Findings, inside [!! ...], amounts in px
 
-Each finding is a measurement that passed a threshold. The tool never guesses intent: a full-bleed section, an avatar stack, an open popover or a collapsed panel prints its numbers like anything else.
+A finding is a measurement past a threshold. The tool never guesses intent, so a full-bleed section, avatar stack, open popover or collapsed panel prints its numbers too. Siblings compare by tag plus the classes at least half of them carry, so \`li.active\` counts as \`li\`.
+- \`clipped right 12 by div.panel\` text or a control cut 1 px or more by an ancestor's overflow, clip or clip-path, or the viewport
+- \`clipped out by div.panel\` text, a control or a box holding them fully outside a non-scrolling clip. What a scroll box can bring into view gets neither
+- \`overflows parent end 14\` an in-flow box past its parent's border box, \`start and end 24\` when both sides match
+- \`text overflows end 30\` its own text ink past its box
+- \`past viewport end 14\` box or text ink past the viewport's inline end, so the page scrolls sideways. On the box where it starts and any box past its own parent
+- \`covered top 24 by header.site\` another element paints over it, inside the viewport. \`covered 40% by X (translucent)\` when it shows through
+- \`overlaps div.badge 12x40\` sibling boxes with ink intersect by 2 px or more on both axes
+- \`off center 3 down\` in a box with symmetric padding, free space above and below its children's border boxes (margins count) differs by 3. \`off center 2 end\` on the inline axis
+- \`text off center 3 down\` one text line, space above cap height and below baseline differ by 3 or more
+- \`a.button tops 312..328 across siblings\` in a row of sibling cards, the same part (same tag, same child position) shares no top, center or bottom line. The numbers are its @y values. \`div.stat tops 0..6\` is the cards themselves
+- \`input.field starts 0..3 across siblings\` stacked siblings, or the same part in each, with @x 0 to 3 and no shared start, center or end line
+- \`12 wider than li.card\` one sibling in a row is 12 wider than most. \`16 taller than\`, \`10 shorter than\` for height
+- \`gaps 16 16 24 16 between li.step\` one sibling gap differs from the most common by 2 px or more
+- \`text truncated ellipsis 40\`, \`text clamped 3 lines\`, \`text cut 40\`
+- \`contrast 2.8\` below 4.5, or 3 for large text
+- \`small target 20x20\` interactive, under 24 px, another target inside its 24 px spacing circle (WCAG 2.5.8). Fully covered, pointer-events none and inert neighbors do not count
+- \`image not loaded\` img with a src loaded no pixels. \`image aspect 1.30 of natural\` object-fit fill stretches it 1.30 times its natural aspect. \`image upscaled 2.1\` raster drawn at 2.1 times its natural pixels
+- \`scroll range y 3\` scroll box content exceeds it by 1-8 px
 
-clipped right 12 by div.panel      text or control cut by an ancestor's overflow, clip or clip-path (or by viewport), 1 px or more
-clipped out by div.panel           text, control or a box holding them, fully outside a non-scrolling clip; what a scroll box can bring into view never gets either
-overflows parent end 14            in-flow box extends past its parent's border box; \`start and end 24\` when both sides match
-text overflows end 30              its own text ink extends past its box
-past viewport end 14               its box or text ink extends past the viewport's inline end, so the page scrolls sideways; on the box where it starts and on any box that sticks out of its own parent
-covered top 24 by header.site      another element paints over it (checked inside the viewport only); \`covered 40% by X (translucent)\` when the cover lets it show through
-overlaps div.badge 12x40           two sibling boxes with ink intersect by 2 px or more on both axes
-off center 3 down                  in a box with symmetric padding, the free space above and below its children's border boxes differs by 3 (margins count as offset); \`off center 2 end\` on the inline axis
-text off center 3 down             one text line: the space above its cap height and below its baseline differ by 3 or more
-a.button tops 312..328 across siblings   in a row of sibling cards, the same part (same tag at the same child position) shares no top, center or bottom line, in each card and in the row; 312..328 are the @y values the tree prints for it; \`div.stat tops 0..6\` is the cards themselves
-input.field starts 0..3 across siblings   in a column of stacked siblings, @x from 0 to 3 px with no shared start, center or end line; like tops, also for the same part inside each sibling
-12 wider than li.card              one sibling in a row is 12 wider than the width most siblings share
-16 taller than li.card             the same for height, also \`10 shorter than li.card\`
-gaps 16 16 24 16 between li.step   gaps between siblings, when one differs from the most common by 2 px or more
-                                   siblings compare by tag plus the classes at least half of them carry, so \`li.active\` counts as an \`li\`
-text truncated ellipsis 40         also \`text clamped 3 lines\`, \`text cut 40\`
-contrast 2.8                       text contrast ratio below 4.5 (3 for large text)
-small target 20x20                 interactive element under 24 px, with another target inside its 24 px spacing circle (WCAG 2.5.8); fully covered, pointer-events none and inert neighbors do not count
-image not loaded                   img with a src finished loading with no pixels
-image aspect 1.30 of natural       object-fit fill draws it at 1.30 times its natural aspect ratio
-image upscaled 2.1                 raster drawn at 2.1 times its natural pixels
-scroll range y 3                   scroll box whose content exceeds it by 1-8 px
-
-\`clipped out by X\` under a clipper tagged \`[clips 5 of 8 children]\`, with \`[translated …]\` or \`[animating]\` on its track, is what a carousel or marquee looks like. Judge it from the code.
+\`clipped out by X\` under a \`[clips …]\` clipper with \`[translated …]\` or \`[animating]\` on its track is a carousel or marquee. Judge it from the code.
 
 ## Limits
 
-- Coverage is checked only inside the viewport. Scroll with --scroll to check another region.
-- Declarative closed shadow roots, iframes and svg insides are not walked.
-- Pseudo-element ink is placed on the element's box. Clip paths count as their border box. Border radius is ignored.
-- Desktop emulation only: (hover: hover) and (pointer: fine) match. No touch.
-- Scrollbars take 0 px (overlay-scrollbar device).
-- Time-based animations are finished (infinite ones reset to 0) before measuring. Scroll-driven ones, view-timeline reveals included, are measured where the scroll left them. \`--scroll '<selector>'\` brings one fully in.
-- Vertical writing modes print physical positions.
-- No overlap, centering, width or height findings inside a rotated or scaled box.
-- pxtree waits for DOMContentLoaded, then up to 2 s for load and 1.5 s for a quiet network (not for files). Use --wait for slower pages.
-- Text that the page controls prints with quotes as ', brackets as ( ) and › as >, so it cannot fake a tag or a finding.
+- Coverage is checked only inside the viewport. Scroll to check another region. Closed declarative shadow roots, iframes and svg insides are not walked.
+- Pseudo-element ink sits on the element's box. Clip paths count as their border box. Border radius is ignored. Vertical writing modes print physical positions. A rotated or scaled box gets no overlap, centering, width or height findings inside.
+- Desktop emulation: (hover: hover) and (pointer: fine) match, no touch. Scrollbars take 0 px (overlay).
+- Time-based animations are finished (infinite ones reset to 0). Scroll-driven ones, view-timeline reveals included, stay where the scroll left them. \`--scroll '<selector>'\` brings one fully in.
+- Waits for DOMContentLoaded, then up to 2 s for load and 1.5 s for a quiet network (not for files). Use --wait for slower pages. Page text prints quotes as ', brackets as ( ) and › as >, so it cannot fake a tag or finding.
 `;
 
 /** The agent reading guide. `pxtree guide` prints it verbatim. */
-export const readingGuideText = guideIntroductionText + reportingRulesText + guideReferenceText;
-
-const skillUsageText = `# Checking a rendered page with pxtree
-
-## Reporting to the user
-
-${reportingRulesText}Before the first call, check that the dev server answers (\`curl -sI localhost:5173\`), so a down server never costs a measurement that only prints \`could not load\`.
-
-pxtree reports what the browser drew, which the source cannot tell you. Use it when (numbers from 47 planted bugs, text against a viewport screenshot):
-- tap targets: 5 of 6 found, the screenshot 1 of 6
-- clipping by overflow hidden, a dropdown cut by its header included: 3 of 3, the screenshot 0 of 3
-- contrast, light or dark: 4 of 4, the screenshot 3 of 4
-- content under a fixed or sticky bar: 3 of 3, the screenshot 2 of 3
-- a phone width or an open dialog: overflow at 390 4 of 4, cut dialogs 2 of 2
-- tokens: about 540 a run, about 60 with --report summary, against about 1100 for a 1280x800 screenshot
-
-Do not bother when:
-- you check whether something looks centered: off center 2 of 4, a label at the top of a tall button and a 4 px nudged glyph were missed
-- a responsive rule squeezes a layout: 3 of 4, the screenshot 4 of 4
-- the page is a big data table and you need all of it: about 1300 tokens, more than a screenshot
-
-Long sessions:
-- Start with \`--report summary\` (facts, since last run and findings, no tree), then on a big page \`--report findings\` (only the tree lines with findings, under their ancestors' names), then drill into one area with \`--element '<selector>'\`.
-- After a fix, verify it with \`--report changes\`: only the facts line and what changed since the last run.
-- To prototype a fix with \`--script "await page.addStyleTag(…)"\`, give it and a plain baseline run the same \`--diff-key base\`, so since last run compares them.
-- Add \`--aria\` when you check labels, roles or reading order.
-- Measure several regions in one call with \`--scroll 0,'#pricing',end\`, not one call per stop.
-- Take one \`--report none --screenshot shot.png\` at the end, only if the text leaves a doubt.
-
-Command shapes:
-
-\`\`\`
-npx -y pxtree@latest localhost:5173                                  # dev server
-npx -y pxtree@latest ./dist/index.html                               # HTML file
-npx -y pxtree@latest localhost:5173 --viewport 390,1280              # mobile and desktop
-npx -y pxtree@latest localhost:5173 --scheme dark                    # dark mode
-npx -y pxtree@latest localhost:5173 --scroll '#pricing'              # a region below the fold
-npx -y pxtree@latest localhost:5173 --scroll 0,'#pricing',end        # several regions in one call
-npx -y pxtree@latest localhost:5173 --element '.card'                # one component and its ancestors
-npx -y pxtree@latest localhost:5173 --script "await page.click('text=Menu')" --wait '.menu'   # a state: open menu, dialog, hover
-npx -y pxtree@latest localhost:5173 --report summary --aria          # findings plus names, roles and reading order
-npx -y pxtree@latest localhost:5173 --report findings                # only the lines with findings, on a big page
-npx -y pxtree@latest localhost:5173 --report none --screenshot shot.png   # only when the text is not enough
-\`\`\`
-
-Over MCP, the flags are inputs of the \`measure\` tool: the target is \`target\`, \`--viewport 390x844\` is \`viewports: [{ width: 390, height: 844 }]\`, \`--scheme\` is \`schemes\`, \`--diff-key\` is \`diffKey\`, \`--no-diff\` is \`diff: false\`, \`--no-children\` is \`children: false\`, \`--screenshot\` is \`screenshot: true\`, and every other flag keeps its name: \`report\`, \`element\`, \`scroll\`, \`script\`, \`wait\`, \`aria\`, \`colors\`, \`timeout\`.
-
-Text wraps unexpectedly: \`--element 'h1' --viewport 1280,1440,1920 --report tree\` and read \`N lines, W on one line\` against the element's width.
-
-Tags in the tree such as \`[clipped out by …]\`, \`[not painted …]\` and \`[children skipped …]\` are measurements too, so once \`--report summary\` points you somewhere, read the tree there before acting. Fix what the code shows is a bug, run again, and check \`since last run\` shows the change you meant.
-
-`;
+export const readingGuideText = purposeText + reportingRulesText + flagsText + readingText;
 
 /** How to use pxtree and how to read its output. The skill file prints it under its frontmatter, the MCP `read_me_first` tool returns it. */
-export const skillBodyText = skillUsageText + guideIntroductionText + guideReferenceText;
+export const skillBodyText = purposeText + reportingRulesText + workflowText + flagsText + readingText;

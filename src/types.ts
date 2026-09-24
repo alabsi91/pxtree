@@ -490,7 +490,7 @@ export type ReportDetail = 'tree' | 'findings' | 'summary' | 'changes' | 'none';
 
 /** A browser session. Keep one open to measure several times without relaunching. */
 export interface Session {
-  /** Measures a URL, host or HTML file path. Failures are returned in `error`, not thrown. */
+  /** Measures a URL, host or HTML file path. Failures are returned in `error`, not thrown. One call at a time: a call made while another runs throws. */
   measure(target: string, options?: MeasureOptions): Promise<MeasureResult>;
   /** Closes the browser. */
   close(): Promise<void>;

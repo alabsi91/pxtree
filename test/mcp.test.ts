@@ -55,7 +55,7 @@ test('the read_me_first tool returns the skill body without its frontmatter', as
   assert.equal(resultText, skillBodyText);
   assert.equal(createSkillText().replace(/^---\n[\s\S]*?\n---\n\n/, ''), resultText);
   assert.ok(resultText.includes(reportingRulesText), 'carries the reporting shapes');
-  assert.match(resultText, /Over MCP, the flags are inputs of the `measure` tool/);
+  assert.match(resultText, /\| CLI flag \| MCP input \| meaning \|/);
 });
 
 test('measure returns the formatted report', async () => {
@@ -135,6 +135,32 @@ test('report findings prints only lines with findings and their ancestors', asyn
   assert.notEqual(result.isError, true, getResultText(result));
   assert.ok(reportLines.includes('body'), reportLines.join('\n'));
   assert.ok(!reportLines.some((line) => line.includes('li.tile')), reportLines.join('\n'));
+});
+
+test('parallel measure calls run one at a time and each returns its own result', async () => {
+  const countOpenContextsScript = `
+    await page.waitForTimeout(300);
+    const openContextCount = page.context().browser().contexts().length;
+    await page.evaluate((text) => document.body.append(Object.assign(document.createElement('p'), { textContent: text })), 'contexts ' + openContextCount);
+  `;
+  const viewportWidths = [390, 768, 1280];
+
+  const results = await Promise.all(
+    viewportWidths.map((width) =>
+      client.callTool({
+        name: 'measure',
+        arguments: { target: 'test/fixtures/state.html', viewports: [{ width, height: 800 }], script: countOpenContextsScript, element: 'p', diff: false },
+      }),
+    ),
+  );
+
+  for (const [index, result] of results.entries()) {
+    const resultText = getResultText(result);
+
+    assert.notEqual(result.isError, true, resultText);
+    assert.ok(resultText.startsWith(`${viewportWidths[index]}x800 light`), resultText);
+    assert.match(resultText, /p "contexts 1"/);
+  }
 });
 
 test('a bad target returns a tool error with the CLI message', async () => {
