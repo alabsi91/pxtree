@@ -81,14 +81,10 @@ async function publishToNpm() {
     return;
   }
 
-  const { exitCode, outputText } = await runCommand('npm', ['publish']);
-  if (exitCode === 0) return;
-
-  if (outputText.includes('EOTP')) {
-    exitWithMessage('npm needs your one-time password: run `npm publish` yourself, then `npm run release -- --registry-only`');
+  const { exitCode } = await runCommand('npm', ['publish'], { shouldInheritAllOutput: true });
+  if (exitCode !== 0) {
+    exitWithMessage('npm publish failed');
   }
-
-  exitWithMessage('npm publish failed');
 }
 
 function getPublisherFileName() {
