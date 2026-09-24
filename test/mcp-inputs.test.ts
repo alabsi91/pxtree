@@ -90,11 +90,29 @@ test('scroll as a digit string, a number, a selector, end, and a mixed array', a
   assert.deepEqual(getScrollFacts(mixedText), ['scroll 0/2800', 'scroll 900/2800', 'scroll 1800/2800', 'scroll 2800/2800']);
 });
 
-test('scroll with a selector that is not valid CSS fails with one line', async () => {
-  const { isError, text } = await callMeasure({ scroll: '9px0' });
+test('scroll that is not a y offset, end or valid CSS fails with one line that says what a stop may be', async () => {
+  for (const scrollStop of ['9px0', '-100', '50%']) {
+    const { isError, text } = await callMeasure({ scroll: scrollStop });
+
+    assert.equal(isError, true);
+    assert.equal(text, `scroll failed: ${scrollStop} is not a y offset of 0 or more, end, or a selector`);
+  }
+});
+
+test('wait that is neither milliseconds nor valid CSS fails with one line before loading', async () => {
+  assert.deepEqual(await callMeasure({ wait: '1s' }), { isError: true, text: 'wait failed: 1s is not milliseconds or a valid selector' });
+});
+
+test('element that is not valid CSS fails with one line', async () => {
+  const { isError, text } = await callMeasure({ element: 'div[' });
 
   assert.equal(isError, true);
-  assert.equal(text, 'scroll failed: 9px0 is not a valid selector');
+  assert.equal(text, 'element failed: div[ is not a valid selector');
+});
+
+test('empty viewports and empty schemes fail naming the field', async () => {
+  await assertMeasureFailsNamingInput({ viewports: [] }, 'viewports needs at least one viewport');
+  await assertMeasureFailsNamingInput({ schemes: [] }, 'schemes needs at least one scheme');
 });
 
 test('element with children false prints the match without its content', async () => {
@@ -121,9 +139,38 @@ test('screenshot returns a PNG path', async () => {
   await assertMeasureSucceeds({ screenshot: true, report: 'summary' }, /screenshot: .+\.png/);
 });
 
-test('timeout as a number, and as a digit string fails naming timeout', async () => {
+test('timeout as a number or a digit string, and booleans as "true" or "false" strings', async () => {
   await assertMeasureSucceeds({ timeout: 20000, report: 'summary' }, /^1280x800 light/);
-  await assertMeasureFailsNamingInput({ timeout: '20000' }, 'timeout');
+  await assertMeasureSucceeds({ timeout: '20000', aria: 'true', colors: 'false', diff: 'false', report: 'summary' }, /aria:\n- heading/);
+  await assertMeasureFailsNamingInput({ timeout: 'soon' }, 'timeout');
+  await assertMeasureFailsNamingInput({ aria: 'yes' }, 'aria');
+});
+
+test('an unknown key fails naming the key', async () => {
+  await assertMeasureFailsNamingInput({ viewport: { width: 390, height: 844 } }, 'Unrecognized key: "viewport"');
+});
+
+test('a scroll string with commas is a list of stops, like the CLI flag', async () => {
+  const text = await assertMeasureSucceeds({ scroll: '0,900,end', report: 'summary' }, /^1280x800 light/);
+
+  assert.deepEqual(getScrollFacts(text), ['scroll 0/2800', 'scroll 900/2800', 'scroll 2800/2800']);
+});
+
+test('a directory target and an empty target fail with one line', async () => {
+  assert.deepEqual(await callMeasure({ target: 'test/fixtures' }), { isError: true, text: 'target is a directory: test/fixtures' });
+  assert.deepEqual(await callMeasure({ target: ' ' }), { isError: true, text: 'target is empty' });
+});
+
+test('a script given as a whole arrow function runs', async () => {
+  const script = "async (page) => { await page.evaluate(() => { document.querySelector('h1').textContent = 'arrow ran' }) }";
+
+  await assertMeasureSucceeds({ script, element: 'h1' }, /h1 "arrow ran"/);
+});
+
+test('maxChars cuts the report and says so on the last line', async () => {
+  const { text } = await callMeasure({ maxChars: 300 });
+
+  assert.equal(text.split('\n').at(-1), 'output cut at 300 characters, use --report findings, --element or --max-chars');
 });
 
 test('diffKey is accepted with diff on', async () => {

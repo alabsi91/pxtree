@@ -160,7 +160,7 @@ Zed, `settings.json`:
 
 MCP Registry name: `io.github.alabsi91/pxtree`. The server has two tools: `measure`, and `read_me_first`, which returns what the skill holds: how to use pxtree, how to report, and the reading guide. Its instructions tell the agent to call `read_me_first` once per session, so no skill install is needed.
 
-`measure` takes `target` and the CLI flags as inputs: `viewports`, `schemes`, `scroll`, `element`, `children`, `colors`, `wait`, `script`, `screenshot` (true saves a PNG per run under the temp directory), `timeout`, `diff`, `diffKey`, `report` (`tree`, `findings`, `summary`, `changes` or `none`) and `aria` (true adds the aria tree). One call can return the report, the aria tree and a screenshot together. Inputs are bounded: viewport sides 1 to 10000, at most 10 viewports, `timeout` at most 120000. A file target must sit under the server's working directory.
+`measure` takes `target` and the CLI flags as inputs: `viewports`, `schemes`, `scroll`, `element`, `children`, `colors`, `wait`, `script`, `screenshot` (true saves a PNG per run under the temp directory), `timeout`, `maxChars` (default 80000), `diff`, `diffKey`, `report` (`tree`, `findings`, `summary`, `changes` or `none`) and `aria` (true adds the aria tree). One call can return the report, the aria tree and a screenshot together. Inputs are bounded: viewport sides 1 to 10000, at most 10 viewports, `timeout` at most 120000. A file target must sit under the server's working directory. That rule prevents accidents and is not a security boundary: `script` is trusted code that runs as Node in the server process.
 
 ### Skill
 

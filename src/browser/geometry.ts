@@ -105,11 +105,37 @@ export function getInsetBox(box: Box, sides: Sides): Box {
   };
 }
 
+/**
+ * Border-box size before transforms, with fractions. Computed width and height are used sizes for boxes that lay out.
+ * An inline box computes to `auto` and falls back to the rounded offset size.
+ */
+export function getLayoutSize(
+  element: HTMLElement,
+  style: CSSStyleDeclaration,
+  border: Sides,
+  padding: Sides,
+): { width: number; height: number } {
+  const isContentBox = style.boxSizing === 'content-box';
+  const getBorderBoxSize = (computedSize: string, offsetSize: number, sideTotal: number) => {
+    if (!computedSize.endsWith('px')) {
+      return offsetSize;
+    }
+
+    return roundToHundredth(parseFloat(computedSize) + (isContentBox ? sideTotal : 0));
+  };
+
+  return {
+    width: getBorderBoxSize(style.width, element.offsetWidth, border[1] + border[3] + padding[1] + padding[3]),
+    height: getBorderBoxSize(style.height, element.offsetHeight, border[0] + border[2] + padding[0] + padding[2]),
+  };
+}
+
 // ---------- transforms ----------
 
 interface OwnTransform {
   rotateDegrees: number;
-  scale: number;
+  scale: { x: number; y: number };
+  flippedAxis: 'x' | 'y' | null;
   translateX: number;
   translateY: number;
 }
@@ -153,16 +179,33 @@ export function getOwnTransform(style: CSSStyleDeclaration, layoutWidth: number,
     matrix = matrix.multiply(new DOMMatrixReadOnly(style.transform));
   }
 
-  const rotateDegrees = (Math.atan2(matrix.m12, matrix.m11) * 180) / Math.PI;
-  const scale = Math.hypot(matrix.m11, matrix.m12);
+  const determinant = matrix.m11 * matrix.m22 - matrix.m12 * matrix.m21;
+  const isFlipped = determinant < 0;
+  const unflippedM11 = isFlipped ? -matrix.m11 : matrix.m11;
+  const unflippedM12 = isFlipped ? -matrix.m12 : matrix.m12;
+  let rotateDegrees = (Math.atan2(unflippedM12, unflippedM11) * 180) / Math.PI;
+  let flippedAxis: OwnTransform['flippedAxis'] = isFlipped ? 'x' : null;
+
+  if (isFlipped && Math.abs(rotateDegrees) > 90) {
+    flippedAxis = 'y';
+    rotateDegrees -= Math.sign(rotateDegrees) * 180;
+  }
+
+  const scaleX = Math.hypot(matrix.m11, matrix.m12);
+  const scaleY = scaleX === 0 ? 0 : Math.abs(determinant) / scaleX;
   const translateProperty = getTranslateProperty(style.translate, layoutWidth, layoutHeight);
 
   return {
     rotateDegrees: Math.abs(rotateDegrees) >= 0.5 ? roundToHundredth(rotateDegrees) : 0,
-    scale: Math.abs(scale - 1) >= 0.01 ? roundToHundredth(scale) : 1,
+    scale: { x: getRoundedScale(scaleX), y: getRoundedScale(scaleY) },
+    flippedAxis,
     translateX: roundToHundredth(translateProperty.x + matrix.m41),
     translateY: roundToHundredth(translateProperty.y + matrix.m42),
   };
+}
+
+function getRoundedScale(scale: number): number {
+  return Math.abs(scale - 1) >= 0.01 ? roundToHundredth(scale) : 1;
 }
 
 function getAngleDegrees(angle: string): number {
@@ -185,9 +228,23 @@ function getAngleDegrees(angle: string): number {
 
 // ---------- containing blocks and clips ----------
 
+const fixedContainingWillChangeNames = new Set([
+  'transform',
+  'translate',
+  'rotate',
+  'scale',
+  'perspective',
+  'filter',
+  'backdrop-filter',
+  'contain',
+]);
+
+function getWillChangeNames(style: CSSStyleDeclaration): string[] {
+  return style.willChange.split(',').map((willChangeName) => willChangeName.trim());
+}
+
 export function isContainingBlockForFixed(style: CSSStyleDeclaration): boolean {
   const contain = style.contain;
-  const willChange = style.willChange;
 
   return (
     style.transform !== 'none' ||
@@ -199,12 +256,12 @@ export function isContainingBlockForFixed(style: CSSStyleDeclaration): boolean {
     style.backdropFilter !== 'none' ||
     /paint|layout|strict|content/.test(contain) ||
     style.containerType !== 'normal' ||
-    /transform|translate|rotate|scale|perspective|filter|contain/.test(willChange)
+    getWillChangeNames(style).some((willChangeName) => fixedContainingWillChangeNames.has(willChangeName))
   );
 }
 
 export function isContainingBlockForAbsolute(style: CSSStyleDeclaration): boolean {
-  return style.position !== 'static' || /position/.test(style.willChange) || isContainingBlockForFixed(style);
+  return style.position !== 'static' || getWillChangeNames(style).includes('position') || isContainingBlockForFixed(style);
 }
 
 export function getOverflowKind(overflow: string): ClipKind {
@@ -594,37 +651,66 @@ export function getFontMetrics(style: CSSStyleDeclaration): FontMetrics {
 
 // ---------- style probes ----------
 
-/** Appends declarations to each element's style attribute. Returns the attributes as they were, for restoreStyleAttributes. */
-export function addStyleOverride(elements: Element[], declarations: string): Array<string | null> {
-  const savedStyleAttributes = elements.map((element) => element.getAttribute('style'));
-
-  elements.forEach((element, elementIndex) => {
-    const savedStyle = savedStyleAttributes[elementIndex];
-    element.setAttribute('style', `${savedStyle ?? ''}; ${declarations}`);
-  });
-
-  return savedStyleAttributes;
+interface SavedInlineStyle {
+  inlineStyle: CSSStyleDeclaration | null;
+  element: Element;
+  hadStyleAttribute: boolean;
+  savedDeclarations: Array<{ propertyName: string; value: string; priority: string }>;
 }
 
-export function restoreStyleAttributes(elements: Element[], savedStyleAttributes: Array<string | null>): void {
-  elements.forEach((element, elementIndex) => {
-    const savedStyle = savedStyleAttributes[elementIndex];
+/**
+ * Sets each property with `!important` on each element's inline style. It goes through the CSSOM, because a CSP
+ * `style-src` without `unsafe-inline` blocks a written style attribute. Returns what restoreInlineStyles needs.
+ */
+export function addInlineStyleOverride(elements: Element[], valueByPropertyName: Record<string, string>): SavedInlineStyle[] {
+  const propertyNames = Object.keys(valueByPropertyName);
 
-    if (savedStyle === null) {
-      element.removeAttribute('style');
-    } else {
-      element.setAttribute('style', savedStyle);
+  return elements.map((element) => {
+    const inlineStyle = (element as Partial<ElementCSSInlineStyle>).style ?? null;
+    const savedInlineStyle: SavedInlineStyle = {
+      inlineStyle,
+      element,
+      hadStyleAttribute: element.hasAttribute('style'),
+      savedDeclarations: propertyNames.map((propertyName) => ({
+        propertyName,
+        value: inlineStyle?.getPropertyValue(propertyName) ?? '',
+        priority: inlineStyle?.getPropertyPriority(propertyName) ?? '',
+      })),
+    };
+
+    for (const propertyName of propertyNames) {
+      inlineStyle?.setProperty(propertyName, valueByPropertyName[propertyName], 'important');
     }
+
+    return savedInlineStyle;
   });
+}
+
+export function restoreInlineStyles(savedInlineStyles: SavedInlineStyle[]): void {
+  for (const { inlineStyle, element, hadStyleAttribute, savedDeclarations } of savedInlineStyles) {
+    if (!inlineStyle) continue;
+
+    for (const { propertyName, value, priority } of savedDeclarations) {
+      if (value === '') {
+        inlineStyle.removeProperty(propertyName);
+      } else {
+        inlineStyle.setProperty(propertyName, value, priority);
+      }
+    }
+
+    if (!hadStyleAttribute && element.hasAttribute('style')) {
+      element.removeAttribute('style');
+    }
+  }
 }
 
 /** Returns, per element, whether it sits away from its flow position right now. */
 export function getStuckStates(elements: Element[]): boolean[] {
   const stuckBoxes = elements.map((element) => element.getBoundingClientRect());
-  const savedStyleAttributes = addStyleOverride(elements, 'position: static !important');
+  const savedInlineStyles = addInlineStyleOverride(elements, { position: 'static' });
   const flowBoxes = elements.map((element) => element.getBoundingClientRect());
 
-  restoreStyleAttributes(elements, savedStyleAttributes);
+  restoreInlineStyles(savedInlineStyles);
 
   return elements.map((_element, elementIndex) => {
     const topDifference = Math.abs(stuckBoxes[elementIndex].top - flowBoxes[elementIndex].top);

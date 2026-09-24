@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>image sizes</title>
+    <style>
+      body { margin: 0; }
+      img { display: block; }
+    </style>
+  </head>
+  <body>
+    <img class="half" style="width: 20px" alt="" />
+    <img class="retina" alt="" />
+    <img class="low-res" alt="" />
+    <script>
+      function createPng(width, height) {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').fillRect(0, 0, width, height);
+
+        return canvas.toDataURL('image/png');
+      }
+
+      document.querySelector('.half').src = createPng(40, 27);
+      document.querySelector('.retina').srcset = `${createPng(100, 50)} 1x, ${createPng(200, 100)} 2x`;
+      document.querySelector('.low-res').srcset = `${createPng(80, 40)} 1x`;
+    </script>
+  </body>
+</html>

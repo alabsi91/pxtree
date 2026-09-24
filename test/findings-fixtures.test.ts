@@ -70,7 +70,7 @@ describe('truncation.html', () => {
   test('span clipped by the card', () => {
     const noteLine = findLine(reportLines, 'span.note');
 
-    assert.match(noteLine, /clipped right \d+ by div\.card/);
+    assert.match(noteLine, /clipped end \d+ by div\.card/);
     assert.doesNotMatch(noteLine, /overflows parent/);
   });
 
@@ -229,7 +229,7 @@ describe('by-design.html', () => {
       ),
       reportLines.join('\n'),
     );
-    assert.match(findLine(reportLines, 'span "Umbrella"'), /\[!! clipped right \d+ by section\.marquee \(mid animation\)\]/);
+    assert.match(findLine(reportLines, 'span "Umbrella"'), /\[!! clipped end \d+ by section\.marquee \(mid animation\)\]/);
   });
 
   test('a translated carousel track prints its hidden slides and the visible slide that overflows the track', () => {

@@ -37,30 +37,31 @@ const flagsText = `## Flags
 | \`--scheme light,dark\` | \`schemes\` | prefers-color-scheme, default light |
 | \`--dpr 2\` | - | device pixel ratio, default 1 |
 | \`--scroll 0,'#pricing',end\` | \`scroll\` | one run per stop: a y offset, a selector (to the viewport top) or \`end\`. Default 0 |
-| \`--script "await page.click('text=Menu')"\` | \`script\` | Playwright page code for a state (open menu, dialog, hover), run once at the first stop. The CLI also takes a file that exports \`async (page) => {}\` |
-| \`--wait 500\` or \`'.menu'\` | \`wait\` | after the script, sleep ms or wait until the selector is visible |
+| \`--script "await page.click('text=Menu')"\` | \`script\` | Playwright page code for a state (open menu, dialog, hover), run once at the first stop: a function body, or a whole \`async (page) => {}\`. The CLI also takes a file that exports \`async (page) => {}\` |
+| \`--wait 500\` or \`'.menu'\` | \`wait\` | after the script, sleep ms (at most the timeout) or wait up to the timeout until the selector is visible |
 | \`--element '.card'\` | \`element\` | print only matches and their ancestor lines. Facts, summary and since last run stay page-wide |
 | \`--no-children\` | \`children: false\` | with element, drop what is inside the matches |
 | \`--colors\` | \`colors\` | hex colors in \`[text]\` and \`[renders]\` |
 | \`--report summary\` | \`report\` | \`tree\` (default), \`findings\` (lines with findings, under their ancestors' names), \`summary\` (no tree), \`changes\` (facts, since last run), \`none\` (facts) |
 | \`--aria\` | \`aria\` | the aria tree after the report, one per element match, always the whole subtree |
 | \`--screenshot shot.png\` | \`screenshot: true\` | PNG of the viewport, clipped to a single element match. MCP saves it in the OS temp directory |
-| \`--json\` | - | the raw measurement JSON |
+| \`--json\` | - | the raw measurement JSON, also on failure. \`--report\` does not apply |
 | \`--out ./pxtree-out\` | - | write pxtree.txt and pxtree.json, print facts and summary |
-| \`--timeout 60000\` | \`timeout\` | ms to reach DOMContentLoaded, default 30000. Measuring gets what is left |
+| \`--max-chars 200000\` | \`maxChars\` | longest report, default 80000. Past it the tree is cut at a line and the last line says so. Facts, since last run and summary are never cut |
+| \`--timeout 60000\` | \`timeout\` | ms to reach DOMContentLoaded, default 30000, at most 120000. Script, wait, reveal and measuring each get this long again |
 | \`--channel chrome\` | - | use an installed browser |
 | \`--no-reveal\` | - | skip the scroll pass that fires lazy-load and reveal-on-scroll |
 | \`--no-diff\` | \`diff: false\` | skip since last run |
 | \`--diff-key base\` | \`diffKey\` | key since last run on this name instead of script and wait |
 
-The aria tree has names, roles and labels and no geometry. One call can hold all three, \`--report summary --aria --screenshot shot.png\`. \`--report none --aria\` is the aria tree alone, \`--report none --screenshot shot.png\` a pure screenshot. With --no-diff too, \`none\` skips measuring and the facts line says \`not measured\`.
+The aria tree has names, roles and labels and no geometry. One call can hold all three, \`--report summary --aria --screenshot shot.png\`. \`--report none --aria\` is the aria tree alone, \`--report none --screenshot shot.png\` a pure screenshot. With --no-diff too, \`none\` skips measuring and the facts line says \`not measured\`. A script is trusted code: it runs as Node in the pxtree process with its full rights, so pass only code you wrote.
 
 `;
 
 const readingText = `## Output, per viewport, scheme and scroll stop
 
-Facts: \`1280x800 light dpr 1 ltr scroll 0/1450 page 1280x2250 painted to 2210\` is viewport, scheme, dpr, direction (\`rtl (start is right)\`), scroll y/max, document size and lowest painted pixel. Then, when true: \`status 404\`, \`redirected to <url>\`, \`sideways 14 by a.more\` (the widest \`past viewport\` element), \`scroll locked\`, \`window does not scroll, main scrolls y 2400 in 800\` (an app shell, use \`--scroll '<selector>'\`), \`page unchanged by script\` (DOM, control values, top layer and scroll offsets, not :hover or :focus), \`top layer: dialog#x modal, div.menu popover\`, \`still moving div.x\` (never settled), \`font "Inter" not used, drew Arial\` (a page web font drew no text), \`font failed Inter\`, \`coverage sampled partly\`, \`stopped at 20000 elements\`, \`screenshot shot.png 1280x800\` (path and pixel size).
-\`since last run:\` changes against the last run with the same url, size, scheme, dpr, scroll, script and wait (or diff key), in document order. \`~\` changed, \`+\` new, \`-\` gone. \`~ 12 boxes from body>main>section down moved 44 down\` only moved, all by the same amount. \`findings gone: text overflows end 30\` went away.
+Facts: \`1280x800 light dpr 1 ltr scroll 0/1450 page 1280x2250 painted to 2210\` is viewport, scheme, dpr, direction (\`rtl (start is right)\`), scroll y/max, document size and lowest painted pixel. Then, when true: \`status 404\`, \`redirected to <url>\`, \`sideways 14 by a.more\` (the widest \`past viewport\` element), \`scroll locked\`, \`window does not scroll, main scrolls y 2400 in 800\` (an app shell, use \`--scroll '<selector>'\`), \`page unchanged by script\` (DOM, control values, top layer and scroll offsets, not :hover or :focus), \`top layer: dialog#x modal, div.menu popover\`, \`still moving div.x\` (never settled), \`font "Inter" not used, drew Arial\` (a page web font drew no text), \`font failed Inter\`, \`coverage sampled partly\`, \`walk capped at 20000 of 31000 elements\` (the tree ends there, an element match past it says \`not walked\`), \`screenshot shot.png 1280x800\` (path and pixel size). A page that navigates on its own after load, like a meta refresh or a login redirect, is followed and measured where it lands, with \`redirected to <url>\`.
+\`since last run:\` changes against the last run with the same url, size, scheme, dpr, scroll, script and wait (or diff key), in document order. \`~\` changed, \`+\` new, \`-\` gone. \`~ 12 boxes from body>main>section down moved 44 down\` only moved, all by the same amount. \`findings gone: text overflows end 30\` went away. \`text changed\` means the element's own text changed.
 \`summary:\` each finding once with its amount range, \`×count\` and up to three names. A bare tag gets its nearest uniquely named ancestor, \`div.footer-legal li\`. A name siblings share gets its position, \`section.claims p 3 of 5\`. While a modal is open, the inert page behind it has no findings and the summary ends \`3 findings behind the modal not listed\` (\`--element\` on it prints them).
 A second scheme whose tree differs only in findings and colors prints \`tree: same as light, differences:\` and only the lines whose findings differ, and \`summary: same as light\` when it matches. A later scroll stop does the same against the previous one, \`tree: same as scroll 0, differences:\`. Other viewports print in full.
 \`aria:\` Playwright's aria snapshot as YAML in the measured state (after script, scroll and wait): roles, names, states like \`[checked]\`, text in reading order. \`aria: none\` when empty. \`aria .item match 2 of 3:\` heads each element match, \`none (not rendered)\` or \`none (not painted)\` says why one is empty. \`aria: same as light\` for a second scheme with the same tree.
@@ -77,7 +78,7 @@ Tree line: \`name "text" WxH @x,y [tags][!! findings] ×N\`.
 - \`[fixed]\` @x,y is from the viewport. \`[stuck]\` sticky and moved from its flow position
 - \`[top layer modal|popover|fullscreen]\` top-layer root, printed after body, @x,y from the viewport
 - \`[rtl]\` \`[ltr]\` direction differs from the parent
-- \`[rotated 30° from 100x20]\` \`[scaled 1.50 from 100x20]\` WxH is the upright bounding box, from is the layout size
+- \`[rotated 30° from 100x20]\` \`[scaled 1.50 from 100x20]\` \`[scaled 2.00x1.00 from 100x20]\` \`[flipped x from 100x20]\` WxH is the upright bounding box, from is the layout size
 - \`[translated x -320]\` its transform only moves it, by these px (x, y or both)
 - \`[animating]\` a running, paused infinite or scroll-driven animation targets it. Findings on or inside it end \`(mid animation)\`, one frame of a moving state
 - \`[role carousel]\` \`[role marquee]\` from role or aria-roledescription
@@ -98,8 +99,8 @@ Tree line: \`name "text" WxH @x,y [tags][!! findings] ×N\`.
 
 ## Findings, inside [!! ...], amounts in px
 
-A finding is a measurement past a threshold. The tool never guesses intent, so a full-bleed section, avatar stack, open popover or collapsed panel prints its numbers too. Siblings compare by tag plus the classes at least half of them carry, so \`li.active\` counts as \`li\`.
-- \`clipped right 12 by div.panel\` text or a control cut 1 px or more by an ancestor's overflow, clip or clip-path, or the viewport
+A finding is a measurement past a threshold. The tool never guesses intent, so a full-bleed section, avatar stack, open popover or collapsed panel prints its numbers too. Siblings compare by tag plus the classes most of them carry, so \`li.active\` counts as \`li\`. Two siblings with classes but none in common, like \`div.sidebar\` and \`div.content\`, do not compare.
+- \`clipped end 12 by div.panel\` text or a control cut 1 px or more by an ancestor's overflow, clip or clip-path, or the viewport
 - \`clipped out by div.panel\` text, a control or a box holding them fully outside a non-scrolling clip. What a scroll box can bring into view gets neither
 - \`overflows parent end 14\` an in-flow box past its parent's border box, \`start and end 24\` when both sides match
 - \`text overflows end 30\` its own text ink past its box

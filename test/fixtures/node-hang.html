@@ -1,0 +1,7 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>node hang</title>
+<p>hello</p>
+<script>
+  addEventListener('load', () => setTimeout(() => { for (;;) {} }, 30));
+</script>

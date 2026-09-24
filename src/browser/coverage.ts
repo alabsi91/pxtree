@@ -18,9 +18,15 @@ import {
 } from './geometry.ts';
 import { type WalkResult, type WalkedNode, getNearestNodeIndex } from './walk.ts';
 
+/**
+ * An important rule in a layer beats an unlayered important rule of any specificity. It still loses to an important
+ * rule in an earlier author layer and to an important inline style.
+ */
 const probeSheetText = `
-*, *::before, *::after { pointer-events: auto !important; }
-html::before { background-color: Canvas !important; }
+@layer pxtree-probe {
+  *, *::before, *::after { pointer-events: auto !important; }
+  html::before { background-color: Canvas !important; }
+}
 `;
 
 interface Candidate {

@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>transform axes</title>
+    <style>
+      body { margin: 0; padding: 40px; font-family: sans-serif; }
+      .box { width: 40px; height: 20px; margin-bottom: 40px; background: #cde; }
+      .flip-x { transform: scaleX(-1); }
+      .flip-y { transform: scaleY(-1); }
+      .squash { transform: scaleY(0.5); }
+      .shrink { transform: scale(0.5); }
+      .turned-flip { transform: rotate(30deg) scaleX(-1); }
+      .will-scroll { position: relative; }
+      .clipper { width: 40px; height: 20px; overflow: hidden; will-change: scroll-position; }
+      .escaper { position: absolute; top: 0; left: 200px; width: 60px; height: 20px; background: #333; }
+    </style>
+  </head>
+  <body>
+    <div class="box flip-x"><span>mirrored</span></div>
+    <div class="box flip-y"></div>
+    <div class="box squash"></div>
+    <div class="box shrink"></div>
+    <div class="box turned-flip"></div>
+    <div class="will-scroll">
+      <div class="clipper"><div class="escaper"></div></div>
+    </div>
+  </body>
+</html>

@@ -24,6 +24,7 @@ const overSizeTagThresholdPx = 100000;
 const maximumChainNameCount = 3;
 const minimumSimilarRunLength = 3;
 const maximumListedGapCount = 6;
+const defaultMaxCharacters = 80000;
 
 /** A page with the lookups that the tree, the tags and the snapshot need. */
 export interface PageTree {
@@ -67,13 +68,57 @@ export function format(result: MeasureResult, options: FormatOptions = {}): stri
   const shouldShowColors = options.shouldShowColors ?? false;
   const reportDetail = options.report ?? 'tree';
   const pageTrees = result.runs.map((run) => (run.page === null || run.analysis === null ? null : createPageTree(run.page, run.analysis)));
-  const runBlocks = result.runs.map((run, runPosition) => {
-    const reportLines = formatRunReport(result.runs, pageTrees, runPosition, reportDetail, shouldShowColors);
+  const runReports = result.runs.map((run, runPosition) => {
+    const runReport = formatRunReport(result.runs, pageTrees, runPosition, reportDetail, shouldShowColors);
 
-    return [...reportLines, ...formatAriaSection(result.runs, runPosition)].join('\n');
+    return { keptLines: runReport.keptLines, cuttableLines: [...runReport.cuttableLines, ...formatAriaSection(result.runs, runPosition)] };
   });
 
-  return runBlocks.join('\n\n');
+  return joinRunReports(runReports, options.maxCharacters ?? defaultMaxCharacters);
+}
+
+interface RunReport {
+  /** The facts line, since last run and the summary. */
+  keptLines: string[];
+  /** The tree and the aria section. */
+  cuttableLines: string[];
+}
+
+/** Joins the run reports. Past maxCharacters the cuttable lines stop at a line boundary, and a last line says so. */
+function joinRunReports(runReports: RunReport[], maxCharacters: number): string {
+  const fullText = runReports.map((runReport) => [...runReport.keptLines, ...runReport.cuttableLines].join('\n')).join('\n\n');
+  if (fullText.length <= maxCharacters) {
+    return fullText;
+  }
+
+  const cutLine = `output cut at ${maxCharacters} characters, use --report findings, --element or --max-chars`;
+  const keptText = runReports.map((runReport) => runReport.keptLines.join('\n')).join('\n\n');
+  let remainingCharacterCount = maxCharacters - keptText.length - cutLine.length - 1;
+  let isCut = false;
+
+  const runBlocks = runReports.map((runReport) => {
+    const printedCuttableLines: string[] = [];
+
+    for (const line of runReport.cuttableLines) {
+      isCut ||= line.length + 1 > remainingCharacterCount;
+      if (isCut) break;
+
+      printedCuttableLines.push(line);
+      remainingCharacterCount -= line.length + 1;
+    }
+
+    return [...runReport.keptLines, ...printedCuttableLines].join('\n');
+  });
+
+  return `${runBlocks.join('\n\n')}\n${cutLine}`;
+}
+
+/** `no element matches .x`, and how many frames the walk did not enter, because a match may sit inside one. */
+function getNoMatchText(page: PageMeasurement, selector: string): string {
+  const frameCount = page.nodes.filter((node) => node.isFrame).length;
+  const frameText = frameCount === 0 ? '' : `, ${frameCount} ${frameCount === 1 ? 'frame is' : 'frames are'} not walked`;
+
+  return `no element matches ${selector}${frameText}`;
 }
 
 function formatRunReport(
@@ -82,19 +127,24 @@ function formatRunReport(
   runPosition: number,
   reportDetail: ReportDetail,
   shouldShowColors: boolean,
-): string[] {
+): RunReport {
   const run = runs[runPosition];
   const pageTree = pageTrees[runPosition];
   const factsLine = getFactsLine(run, pageTree);
+  const element = pageTree?.page.element ?? null;
+  const noMatchLines = pageTree !== null && element?.matchedCount === 0 ? [getNoMatchText(pageTree.page, element.selector)] : [];
 
   if (pageTree === null || reportDetail === 'none') {
-    return [factsLine];
+    return { keptLines: [factsLine, ...noMatchLines], cuttableLines: [] };
   }
 
-  const changesLines = formatDiff(run.previousSnapshot, createSnapshot(pageTree.page, pageTree.analysis), run.isCacheEnabled);
+  const changesLines =
+    run.cacheOffReason === null
+      ? formatDiff(run.previousSnapshot, createSnapshot(pageTree.page, pageTree.analysis), run.isCacheEnabled)
+      : [`since last run: off, ${run.cacheOffReason}`];
 
   if (reportDetail === 'changes') {
-    return [factsLine, ...changesLines];
+    return { keptLines: [factsLine, ...changesLines, ...noMatchLines], cuttableLines: [] };
   }
 
   const summaryLines = formatSummary(pageTree.page, pageTree.analysis);
@@ -102,16 +152,17 @@ function formatRunReport(
   const printedSummaryLines = sameSummaryRun === null ? summaryLines : [`summary: same as ${sameSummaryRun.colorScheme}`];
 
   if (reportDetail === 'summary') {
-    return [factsLine, ...changesLines, ...printedSummaryLines];
+    return { keptLines: [factsLine, ...changesLines, ...printedSummaryLines, ...noMatchLines], cuttableLines: [] };
   }
 
-  const sameTreeRun = getSameTreeRun(runs, pageTrees, runPosition);
+  const sameTreeRun = getSameTreeRun(runs, pageTrees, runPosition, shouldShowColors);
+  const isFindingsView = reportDetail === 'findings';
   const treeLines =
     sameTreeRun === null
-      ? formatTree(pageTree, run.shouldIncludeChildren, shouldShowColors, reportDetail === 'findings')
-      : formatTreeDifferences(pageTree, sameTreeRun.pageTree, sameTreeRun.runLabel, shouldShowColors);
+      ? formatTree(pageTree, run.shouldIncludeChildren, shouldShowColors, isFindingsView)
+      : formatTreeDifferences(pageTree, sameTreeRun.pageTree, sameTreeRun.runLabel, run.shouldIncludeChildren, shouldShowColors, isFindingsView);
 
-  return [factsLine, ...changesLines, ...printedSummaryLines, ...treeLines];
+  return { keptLines: [factsLine, ...changesLines, ...printedSummaryLines], cuttableLines: treeLines };
 }
 
 // ---------- runs that differ only in scheme ----------
@@ -158,10 +209,15 @@ function getComparedRunLabel(run: RunResult, comparedRun: RunResult): string {
 }
 
 /**
- * An earlier run whose tree matches this one once findings and colors are left out. It is first the run at the same
- * viewport and scroll with another scheme, then the run at the previous scroll stop.
+ * An earlier run whose tree matches this one once findings are left out, and colors too when they do not print. It is
+ * first the run at the same viewport and scroll with another scheme, then the run at the previous scroll stop.
  */
-function getSameTreeRun(runs: RunResult[], pageTrees: Array<PageTree | null>, runPosition: number): { pageTree: PageTree; runLabel: string } | null {
+function getSameTreeRun(
+  runs: RunResult[],
+  pageTrees: Array<PageTree | null>,
+  runPosition: number,
+  shouldShowColors: boolean,
+): { pageTree: PageTree; runLabel: string } | null {
   const pageTree = pageTrees[runPosition];
   if (pageTree === null) {
     return null;
@@ -172,7 +228,7 @@ function getSameTreeRun(runs: RunResult[], pageTrees: Array<PageTree | null>, ru
   for (const comparedPosition of comparedPositions) {
     const comparedTree = comparedPosition === null ? null : pageTrees[comparedPosition];
 
-    if (comparedPosition !== null && comparedTree !== null && hasSameTreeWithoutFindings(comparedTree, pageTree)) {
+    if (comparedPosition !== null && comparedTree !== null && hasSameTreeWithoutFindings(comparedTree, pageTree, shouldShowColors)) {
       return { pageTree: comparedTree, runLabel: getComparedRunLabel(runs[runPosition], runs[comparedPosition]) };
     }
   }
@@ -254,32 +310,43 @@ function formatAriaSection(runs: RunResult[], runPosition: number): string[] {
   });
 }
 
-function getComparableNodeLine(tree: PageTree, index: number): string {
+function getComparableNodeLine(tree: PageTree, index: number, shouldShowColors: boolean): string {
   const node = tree.page.nodes[index];
   const layout = tree.analysis.layouts[index];
-  const tagsText = getNodeTags(tree, index, false).join('|');
+  const tagsText = getNodeTags(tree, index, shouldShowColors).join('|');
 
   return `${node.parentIndex} ${node.name} ${node.text} ${getSizeText(node)} ${roundPixels(layout.x)},${roundPixels(layout.y)} ${tagsText}`;
 }
 
-function hasSameTreeWithoutFindings(firstTree: PageTree, secondTree: PageTree): boolean {
+function hasSameTreeWithoutFindings(firstTree: PageTree, secondTree: PageTree, shouldShowColors: boolean): boolean {
   const firstNodes = firstTree.page.nodes;
   if (firstNodes.length !== secondTree.page.nodes.length || firstTree.page.modalIndex !== secondTree.page.modalIndex) {
     return false;
   }
 
-  return firstNodes.every((node) => getComparableNodeLine(firstTree, node.index) === getComparableNodeLine(secondTree, node.index));
+  return firstNodes.every(
+    (node) => getComparableNodeLine(firstTree, node.index, shouldShowColors) === getComparableNodeLine(secondTree, node.index, shouldShowColors),
+  );
 }
 
-function formatTreeDifferences(tree: PageTree, sameTree: PageTree, sameRunLabel: string, shouldShowColors: boolean): string[] {
+function formatTreeDifferences(
+  tree: PageTree,
+  sameTree: PageTree,
+  sameRunLabel: string,
+  shouldIncludeChildren: boolean,
+  shouldShowColors: boolean,
+  isFindingsView: boolean,
+): string[] {
   const view = createTreeView(tree, shouldShowColors);
+  const printedIndexes = getPrintedIndexes(tree, shouldIncludeChildren, isFindingsView);
   const differentIndexes = tree.page.nodes
     .map((node) => node.index)
     .filter((index) => {
       const findingTexts = tree.findingsByNode[index].map((finding) => finding.text).join('; ');
       const sameFindingTexts = sameTree.findingsByNode[index].map((finding) => finding.text).join('; ');
+      const isPrinted = printedIndexes === null || printedIndexes.has(index);
 
-      return findingTexts !== sameFindingTexts;
+      return isPrinted && findingTexts !== sameFindingTexts;
     });
 
   if (differentIndexes.length === 0) {
@@ -464,8 +531,8 @@ function getMeasurementLimitFactTexts(page: PageMeasurement): string[] {
     factTexts.push('coverage sampled partly');
   }
 
-  if (page.isNodeCapReached) {
-    factTexts.push(`stopped at ${nodeCapCount} elements`);
+  if (page.cappedElementCount !== null) {
+    factTexts.push(`walk capped at ${nodeCapCount} of ${page.cappedElementCount} elements`);
   }
 
   return factTexts;
@@ -623,8 +690,20 @@ function getTransformTag(node: MeasuredNode): string | null {
     transformParts.push(`rotated ${roundPixels(node.rotateDegrees)}°`);
   }
 
-  if (Math.abs(node.scale - 1) >= 0.01) {
-    transformParts.push(`scaled ${node.scale.toFixed(2)}`);
+  const isScaledX = Math.abs(node.scale.x - 1) >= 0.01;
+  const isScaledY = Math.abs(node.scale.y - 1) >= 0.01;
+  const isEvenScale = Math.abs(node.scale.x - node.scale.y) < 0.01;
+
+  if ((isScaledX || isScaledY) && isEvenScale) {
+    transformParts.push(`scaled ${node.scale.x.toFixed(2)}`);
+  }
+
+  if ((isScaledX || isScaledY) && !isEvenScale) {
+    transformParts.push(`scaled ${node.scale.x.toFixed(2)}x${node.scale.y.toFixed(2)}`);
+  }
+
+  if (node.flippedAxis !== null) {
+    transformParts.push(`flipped ${node.flippedAxis}`);
   }
 
   const layoutSizeText = `${roundPixels(node.layoutWidth)}x${roundPixels(node.layoutHeight)}`;
@@ -994,7 +1073,7 @@ function getSignature(view: TreeView, index: number): string {
     const node = view.tree.page.nodes[index];
     const childSignatures = getPrintedChildIndexes(view, index).map((childIndex) => getSignature(view, childIndex));
 
-    signature = `${node.name} ${getSizeText(node)} ${getTags(view, index).join('|')}(${childSignatures.join(',')})`;
+    signature = `${node.name} ${JSON.stringify(node.text)} ${getSizeText(node)} ${getTags(view, index).join('|')}(${childSignatures.join(',')})`;
     view.signatureByNode.set(index, signature);
   }
 
@@ -1181,31 +1260,45 @@ function createTreeView(tree: PageTree, shouldShowColors: boolean): TreeView {
   };
 }
 
+/** The nodes that the tree prints with an element selector or in the findings view. null prints every node. */
+function getPrintedIndexes(tree: PageTree, shouldIncludeChildren: boolean, isFindingsView: boolean): Set<number> | null {
+  const element = tree.page.element;
+  const elementPrintedIndexes = element === null ? null : getElementPrintedIndexes(tree.page, element.matchedIndexes, shouldIncludeChildren);
+
+  return isFindingsView ? getFindingsPrintedIndexes(tree, elementPrintedIndexes) : elementPrintedIndexes;
+}
+
 function formatTree(tree: PageTree, shouldIncludeChildren: boolean, shouldShowColors: boolean, isFindingsView: boolean): string[] {
-  const page = tree.page;
-  const element = page.element;
+  const element = tree.page.element;
   const treeLines: string[] = [];
   const view = createTreeView(tree, shouldShowColors);
 
   if (element !== null) {
     if (element.matchedCount === 0) {
-      return [`no element matches ${element.selector}`];
+      return [getNoMatchText(tree.page, element.selector)];
     }
 
-    const unrenderedCount = element.matchedCount - element.matchedIndexes.length;
+    const unrenderedCount = element.matchedCount - element.matchedIndexes.length - element.unwalkedCount;
+    const unshownTexts: string[] = [];
+
     if (unrenderedCount > 0) {
-      treeLines.push(`${element.selector}: ${element.matchedCount} matched, ${unrenderedCount} not rendered`);
+      unshownTexts.push(`${unrenderedCount} not rendered`);
     }
 
-    view.printedIndexes = getElementPrintedIndexes(page, element.matchedIndexes, shouldIncludeChildren);
+    if (element.unwalkedCount > 0) {
+      unshownTexts.push(`${element.unwalkedCount} not walked, page over ${nodeCapCount} elements`);
+    }
+
+    if (unshownTexts.length > 0) {
+      treeLines.push(`${element.selector}: ${element.matchedCount} matched, ${unshownTexts.join(', ')}`);
+    }
+
     view.matchedIndexes = new Set(element.matchedIndexes);
     view.collapsedBehindModalIndex = null;
   }
 
-  if (isFindingsView) {
-    view.isFindingsView = true;
-    view.printedIndexes = getFindingsPrintedIndexes(tree, view.printedIndexes);
-  }
+  view.isFindingsView = isFindingsView;
+  view.printedIndexes = getPrintedIndexes(tree, shouldIncludeChildren, isFindingsView);
 
   for (const rootIndex of tree.rootIndexes) {
     if (view.printedIndexes === null || view.printedIndexes.has(rootIndex)) {

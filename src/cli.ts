@@ -1,37 +1,47 @@
 #!/usr/bin/env node
-import { existsSync, statSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { constants, existsSync, statSync } from 'node:fs';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { createSession, format, getTargetUrl, readingGuideText } from './index.ts';
-import type { ColorScheme, FormatOptions, MeasureOptions, PageScript, ReportDetail, ScrollStop, Viewport } from './types.ts';
+import { createSession, format, getTargetUrl, readingGuideText, type Session } from './index.ts';
+import type { ColorScheme, FormatOptions, MeasureOptions, PageScript, ReportDetail, Viewport } from './types.ts';
 
 const usageText = `usage: pxtree <url|host|file> [flags]
        pxtree guide    print the reading guide
        pxtree mcp      run as an MCP server on stdio
 
-  --viewport <WxH[,WxH...]>   default 1280x800; a width alone like 390 gets a matching height
+  --viewport <WxH[,WxH...]>   default 1280x800; a width alone like 390 gets a matching height; sides 1 to 10000
   --scheme <light|dark|light,dark>
-  --dpr <n>
+  --dpr <n>                   up to 4
   --scroll <y|end|selector[,...]>   one run per stop
-  --script <file|code>
+  --script <file|code>        trusted code, it runs in Node with the Playwright page
   --wait <ms|selector>
   --element <selector>
   --no-children
   --colors
   --report <tree|findings|summary|changes|none>   default tree
   --aria                      the aria tree after the report
-  --screenshot <path>
-  --json
+  --screenshot <path>         .png, .jpg or .jpeg; no extension gets .png
+  --json                      the raw result, --report and --max-chars do not apply
   --out <dir>
-  --timeout <ms>              default 30000
+  --max-chars <n>             default 80000; past it the tree is cut
+  --timeout <ms>              default 30000, up to 120000
   --channel <name>
   --no-reveal
   --no-diff
   --diff-key <name>           since last run compares runs with the same name, with or without a script
 
 flag examples and how to read the output, run: pxtree guide`;
+
+const maxViewportSide = 10000;
+const maxDevicePixelRatio = 4;
+const maxTimeoutMs = 120000;
+const screenshotExtensions = ['.png', '.jpg', '.jpeg'];
+const exitCodeBySignal = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
+
+/** Set when a signal ends the run. The interrupted measure then prints nothing. */
+let signalExitCode: number | null = null;
 
 class CommandLineError extends Error {
   exitCode: number;
@@ -74,6 +84,10 @@ function parseViewports(viewportText: string): Viewport[] {
       throw new UsageError(`bad viewport: ${sizeText}, width and height must be positive`);
     }
 
+    if (width > maxViewportSide || height > maxViewportSide) {
+      throw new UsageError(`bad viewport: ${sizeText}, width and height must be at most ${maxViewportSide}`);
+    }
+
     return { width, height };
   });
 }
@@ -89,56 +103,81 @@ function parseColorSchemes(schemeText: string): ColorScheme[] {
   });
 }
 
-function parsePositiveNumber(flagName: string, numberText: string): number {
+function parsePositiveNumber(flagName: string, numberText: string, maximum: number): number {
   const parsedNumber = Number(numberText);
   if (numberText.trim() === '' || !Number.isFinite(parsedNumber) || parsedNumber <= 0) {
     throw new UsageError(`bad --${flagName}: ${numberText}, expected a positive number`);
   }
 
+  if (parsedNumber > maximum) {
+    throw new UsageError(`bad --${flagName}: ${numberText}, expected at most ${maximum}`);
+  }
+
   return parsedNumber;
 }
 
-/** Splits at commas outside parentheses, brackets and quotes, so a selector like `:is(h2, h3)` stays one stop. */
-function splitTopLevelCommas(listText: string): string[] {
-  const listItems: string[] = [];
-  let itemStart = 0;
-  let nestingDepth = 0;
-  let openQuote: string | null = null;
+/** A path without an extension gets `.png`. */
+function getScreenshotPath(screenshotText: string): string {
+  const expectedText = 'expected a .png, .jpg or .jpeg file';
 
-  for (let position = 0; position < listText.length; position++) {
-    const character = listText[position];
-
-    if (openQuote !== null) {
-      if (character === openQuote) {
-        openQuote = null;
-      }
-    } else if (character === '"' || character === "'") {
-      openQuote = character;
-    } else if (character === '(' || character === '[') {
-      nestingDepth++;
-    } else if (character === ')' || character === ']') {
-      nestingDepth--;
-    } else if (character === ',' && nestingDepth === 0) {
-      listItems.push(listText.slice(itemStart, position));
-      itemStart = position + 1;
-    }
+  if (screenshotText.trim() === '') {
+    throw new UsageError(`bad --screenshot: empty path, ${expectedText}`);
   }
 
-  listItems.push(listText.slice(itemStart));
+  if (statSync(screenshotText, { throwIfNoEntry: false })?.isDirectory() === true) {
+    throw new UsageError(`bad --screenshot: ${screenshotText} is a directory, ${expectedText}`);
+  }
 
-  return listItems;
+  const extension = extname(screenshotText);
+  if (extension === '') {
+    return `${screenshotText}.png`;
+  }
+
+  if (!screenshotExtensions.includes(extension.toLowerCase())) {
+    throw new UsageError(`bad --screenshot: ${screenshotText}, ${expectedText}`);
+  }
+
+  return screenshotText;
 }
 
-/** A comma list of stops: a y offset, `end` for the bottom, or a selector. */
-function parseScrollStops(scrollText: string): ScrollStop[] {
-  return splitTopLevelCommas(scrollText).map((stopText) => {
-    const trimmedStopText = stopText.trim();
-    if (trimmedStopText === '') {
-      throw new UsageError(`bad --scroll: ${scrollText}, expected stops like 0,900,end or '#pricing'`);
-    }
+/** Checks that the nearest existing ancestor is a writable directory, then creates the missing levels one at a time. */
+async function createWritableDirectory(flagName: string, directoryPath: string): Promise<void> {
+  const missingDirectoryPaths: string[] = [];
+  let existingPath = resolve(directoryPath);
 
-    return trimmedStopText;
-  });
+  while (!existsSync(existingPath)) {
+    missingDirectoryPaths.unshift(existingPath);
+    existingPath = dirname(existingPath);
+  }
+
+  if (!statSync(existingPath).isDirectory()) {
+    throw new UsageError(`bad --${flagName}: ${existingPath} is a file, not a directory`);
+  }
+
+  try {
+    await access(existingPath, constants.W_OK);
+
+    for (const missingDirectoryPath of missingDirectoryPaths) {
+      await mkdir(missingDirectoryPath);
+    }
+  } catch (error) {
+    const errorCode = (error as NodeJS.ErrnoException).code ?? getFirstLine(error);
+    throw new UsageError(`bad --${flagName}: cannot write to ${directoryPath}, ${errorCode}`);
+  }
+}
+
+function getFirstLine(error: unknown): string {
+  return String(error instanceof Error ? error.message : error).split('\n')[0];
+}
+
+/** Closes the browser on ctrl-c, SIGTERM or SIGHUP and exits quietly with 128 plus the signal number. */
+function exitOnSignals(session: Session): void {
+  for (const [signalName, exitCode] of Object.entries(exitCodeBySignal)) {
+    process.once(signalName, () => {
+      signalExitCode = exitCode;
+      void session.close().finally(() => process.exit(exitCode));
+    });
+  }
 }
 
 const reportDetails: ReportDetail[] = ['tree', 'findings', 'summary', 'changes', 'none'];
@@ -171,8 +210,7 @@ async function loadScript(scriptArgument: string): Promise<{ script: string | Pa
     scriptModule = await import(pathToFileURL(scriptPath).href);
   } catch (error) {
     const errorName = error instanceof Error ? error.name : 'Error';
-    const firstMessageLine = String(error instanceof Error ? error.message : error).split('\n')[0];
-    throw new CommandLineError(2, `script failed: ${errorName}: ${firstMessageLine}`);
+    throw new CommandLineError(2, `script failed: ${errorName}: ${getFirstLine(error)}`);
   }
 
   if (typeof scriptModule.default !== 'function') {
@@ -226,12 +264,13 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
       'screenshot': { type: 'string' },
       'json': { type: 'boolean', default: false },
       'out': { type: 'string' },
+      'max-chars': { type: 'string' },
       'timeout': { type: 'string' },
       'channel': { type: 'string' },
       'no-reveal': { type: 'boolean', default: false },
       'no-diff': { type: 'boolean', default: false },
       'diff-key': { type: 'string' },
-      'help': { type: 'boolean', default: false },
+      'help': { type: 'boolean', short: 'h', default: false },
     },
   });
 
@@ -247,7 +286,8 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
   }
 
   const targetUrl = getTargetUrl(targetArguments[0]);
-  const isDirectoryTarget = targetUrl.startsWith('file:') && statSync(fileURLToPath(targetUrl), { throwIfNoEntry: false })?.isDirectory() === true;
+  const isFileTarget = URL.canParse(targetUrl) && new URL(targetUrl).protocol === 'file:';
+  const isDirectoryTarget = isFileTarget && statSync(fileURLToPath(targetUrl), { throwIfNoEntry: false })?.isDirectory() === true;
   if (isDirectoryTarget) {
     throw new UsageError(`target is a directory: ${targetArguments[0]}`);
   }
@@ -262,10 +302,16 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
     shouldIncludeChildren: !flagValues['no-children'],
     shouldReveal: !flagValues['no-reveal'],
     elementSelector: flagValues.element,
-    screenshotPath: flagValues.screenshot,
     shouldCaptureAriaSnapshot: flagValues.aria,
     shouldMeasurePage: reportDetail !== 'none',
     diffKey: flagValues['diff-key'],
+    scroll: flagValues.scroll,
+    wait: flagValues.wait,
+  };
+
+  const formatOptions: FormatOptions = {
+    shouldShowColors: flagValues.colors,
+    report: reportDetail,
   };
 
   if (flagValues.viewport !== undefined) {
@@ -277,23 +323,28 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
   }
 
   if (flagValues.dpr !== undefined) {
-    measureOptions.devicePixelRatio = parsePositiveNumber('dpr', flagValues.dpr);
-  }
-
-  if (flagValues.scroll !== undefined) {
-    measureOptions.scroll = parseScrollStops(flagValues.scroll);
-  }
-
-  if (flagValues.wait !== undefined) {
-    measureOptions.wait = flagValues.wait;
+    measureOptions.devicePixelRatio = parsePositiveNumber('dpr', flagValues.dpr, maxDevicePixelRatio);
   }
 
   if (flagValues.timeout !== undefined) {
-    measureOptions.timeoutMs = parsePositiveNumber('timeout', flagValues.timeout);
+    measureOptions.timeoutMs = parsePositiveNumber('timeout', flagValues.timeout, maxTimeoutMs);
+  }
+
+  if (flagValues['max-chars'] !== undefined) {
+    formatOptions.maxCharacters = Math.floor(parsePositiveNumber('max-chars', flagValues['max-chars'], Infinity));
   }
 
   if (flagValues['no-diff']) {
     measureOptions.cacheDirectory = null;
+  }
+
+  if (flagValues.screenshot !== undefined) {
+    measureOptions.screenshotPath = getScreenshotPath(flagValues.screenshot);
+    await createWritableDirectory('screenshot', dirname(measureOptions.screenshotPath));
+  }
+
+  if (flagValues.out !== undefined) {
+    await createWritableDirectory('out', flagValues.out);
   }
 
   if (flagValues.script !== undefined) {
@@ -301,26 +352,29 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
   }
 
   const session = await createSession({ channel: flagValues.channel });
+  exitOnSignals(session);
 
   try {
     const result = await session.measure(targetArguments[0], measureOptions);
 
+    if (signalExitCode !== null) {
+      return signalExitCode;
+    }
+
     if (result.error !== null) {
+      if (flagValues.json) {
+        console.log(JSON.stringify(result));
+      }
+
       console.error(result.error.message);
       return result.error.kind === 'launch' ? 3 : 2;
     }
-
-    const formatOptions: FormatOptions = {
-      shouldShowColors: flagValues.colors,
-      report: reportDetail,
-    };
 
     if (flagValues.out !== undefined) {
       const reportText = format(result, formatOptions);
       const textPath = join(flagValues.out, 'pxtree.txt');
       const jsonPath = join(flagValues.out, 'pxtree.json');
 
-      await mkdir(flagValues.out, { recursive: true });
       await writeFile(textPath, `${reportText}\n`);
       await writeFile(jsonPath, JSON.stringify(result));
 
@@ -349,7 +403,16 @@ async function main(): Promise<void> {
 
   try {
     if (commandArguments[0] === 'guide') {
+      if (commandArguments.length > 1) {
+        throw new UsageError(`guide takes no arguments, got ${commandArguments.slice(1).join(' ')}`);
+      }
+
       process.stdout.write(readingGuideText);
+      return;
+    }
+
+    if (commandArguments[0] === 'help') {
+      console.log(usageText);
       return;
     }
 
@@ -361,6 +424,10 @@ async function main(): Promise<void> {
 
     process.exitCode = await runMeasure(commandArguments);
   } catch (error) {
+    if (signalExitCode !== null) {
+      return;
+    }
+
     if (error instanceof CommandLineError) {
       console.error(error.message);
       process.exitCode = error.exitCode;

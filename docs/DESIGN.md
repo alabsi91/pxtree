@@ -61,7 +61,7 @@ Only `shown` nodes take part in findings, coverage and ink. Unpainted, sr-only, 
 ### 4.3 Geometry
 
 - Visual rect: `getBoundingClientRect()` plus the window scroll, document coordinates, transform-inclusive, rounded to 0.01. Layout size: `offsetWidth` / `offsetHeight`.
-- Own transform: `style.transform` composed with `translate`, `rotate` and `scale`. Rotation `atan2(m12, m11)` from 0.5 degrees, scale `hypot(m11, m12)` from 0.01 off 1. `isInsideTransform` when an ancestor rotates or scales. A pure translation reports `translate` from 0.5 px.
+- Own transform: `style.transform` composed with `translate`, `rotate` and `scale`. Rotation `atan2(m12, m11)` from 0.5 degrees. X scale = `hypot(m11, m12)`, Y scale = `|determinant| / X`, a negative determinant is a flip. A scale counts from 0.01 off 1. `isInsideTransform` when an ancestor rotates or scales. A pure translation reports `translate` from 0.5 px.
 - Motion: `isAnimating` when a running, paused infinite or scroll-driven animation targets the element itself. `motionRole` is `marquee` or `carousel` from `role` or `aria-roledescription`.
 - `@x,y` (in Node): the offset from the parent's content box, x from the start edge (the right in rtl), omitted at `0,0`. Border and padding of a scaled box count at their drawn size.
 - Top-layer roots and `position: fixed` elements with the viewport as containing block print `@x,y` from the viewport (`[fixed]`, `[top layer ...]`).
@@ -174,13 +174,13 @@ Pure functions in Node over the JSON. Only `shown` nodes, except `clipped out`. 
 
 "Said once down a branch": when an ancestor already carries the same finding kind with the same clipper, coverer or side, descendants do not repeat it. "Where it begins": reported on a node whose parent does not have the same condition, and on a node whose own box (for `past viewport`: box or text ink) extends past its parent's box on that side by 1 px or more.
 
-Sibling groups (tops, starts, wider, taller, shorter, gaps): a sibling's group is its tag plus the classes of its name that at least half of its same-tag siblings carry, so `active` or `featured` does not split it. Texts name the group (`12 wider than li.plan`), the summary lists the node's own name.
+Sibling groups (tops, starts, wider, taller, shorter, gaps): a sibling's group is its tag plus the classes of its name that more than half of its same-tag siblings carry, or at least two of them, so `active` or `featured` does not split it. Exactly two same-tag siblings group only when they share a class or both have none: `li.card` groups with `li.card.featured`, `div.sidebar` does not group with `div.content`. Texts name the group (`12 wider than li.plan`), the summary lists the node's own name.
 
 Behind a modal: while a modal is open, a node that is inert and outside the modal's subtree has no findings. `analyze` drops them, counts them in `Analysis.behindModalFindingCount`, and the summary ends with `N findings behind the modal not listed`. A node inside an `--element` match keeps its findings: the explicit request wins.
 
 | Finding | Printed | Trigger | Threshold | Suppressed when |
 | --- | --- | --- | --- | --- |
-| clipped | `clipped right 12 by div.panel`, `clipped bottom 8 by viewport` | text or control whose visual rect extends past a non-scrolling clip on a side; the clipper is the one recorded for that axis (4.4) | 1 px | clipper scrolls on that axis; said once down a branch |
+| clipped | `clipped end 12 by div.panel`, `clipped bottom 8 by viewport` | text or control whose visual rect extends past a non-scrolling clip on a side; the clipper is the one recorded for that axis (4.4) | 1 px | clipper scrolls on that axis; said once down a branch |
 | clipped out | `clipped out by form.modal-body` (kind `clipped`, grouped per clipper in the summary) | `clipped-out` node (4.2) with own text, a control, or unwalked children, whose parent is `shown` or `clipped-out`. Its line prints the finding instead of the tag | fully outside | none |
 | overflows | `overflows parent end 14`, `overflows parent start and end 24` | in-flow node whose visual rect extends past the parent's border box on a side, not clipped there; equal opposite overhangs within 1 px print as one. Always where it begins | 1 px | parent scrolls on that axis; `past viewport` on the same side; top and bottom when the node or its parent is an inline box (`display: inline`, not replaced, not a control) |
 | text overflows | `text overflows end 30` | own text ink extends past the node's border box and the node does not clip | 1 px | truncation already reported |
@@ -224,7 +224,8 @@ The guide lists them: coverage only in the viewport, no declarative closed roots
 
 - Cache: `$XDG_CACHE_HOME/pxtree`, else `~/.cache/pxtree`, never inside the user's repo. One `<sha1>.json` `Snapshot` per key, overwritten after every run.
 - Key: sha1 of JSON `[url, width, height, scheme, dpr, scroll stop, script text or file content, wait]`, or `[url, width, height, scheme, dpr, scroll stop, diff key]` with `--diff-key` (`diffKey`). The diff key names a state: a fix prototyped with `--script "await page.addStyleTag(…)" --diff-key base` compares with a plain run made with `--diff-key base`.
-- `Snapshot`: per node path, `{ width, height, x, y, tags, findings }` with printed values. Node path: names from `body` joined with `>`, each with `[n]` when the parent has 2+ children of that name. Top-layer roots start their own path.
+- `Snapshot`: per node path, `{ width, height, x, y, tags, findings }` with printed values. Node path: path names from `body` joined with `>`, each with `[n]` when the parent has 2+ children of that path name. A path name is the tag, the id and the first two classes in source order (4.11 filters), so a class count elsewhere on the page does not rename it. Top-layer roots start their own path.
+- A function script without text and without a diff key has no key: `since last run: off, script has no text; pass diffKey`.
 - A path only in the old snapshot is gone, only in the new one is new, and hides its descendants. A path in both is changed when width, height, x or y differ by 1 px, or the tag or finding strings differ. Document order, a gone path after the path before it in the old snapshot.
 - Pure moves: changed nodes whose only change is `@x,y`, two or more with the same delta, print as one line: `~ 5 boxes from body>main>section.pricing down moved 44 down`. The header counts still count every node.
 - A node that only lost findings prints `findings gone: text overflows end 166`. Up to 20 lines, then `… N more`.
@@ -255,6 +256,7 @@ fact       = "status" SP code                     ; only when not 2xx
            | "stopped at 20000 elements"
            | "screenshot" SP path SP W "x" H [ SP "(viewport, selector matched" SP n ")" ]   ; always last
 diff       = "since last run: first run" | "since last run: no changes"
+           | "since last run: off, script has no text; pass diffKey"
            | "since last run:" SP counts { NL "  " ( ( "~" | "+" | "-" ) SP path SP what | "~" SP n SP "boxes from" SP path SP "down moved" SP move ) }
 move       = n SP ( "down" | "up" ) [ SP n SP ( "end" | "start" ) ] | n SP ( "end" | "start" )
 summary    = ( "summary: no findings" | "summary:" SP count-text { NL "  " summary-line } )
@@ -291,7 +293,7 @@ Tag order: frame, `rtl`/`ltr`, transform, `translated`, `animating`, `role`, vis
 | --- | --- |
 | `[fixed]`, `[top layer modal]` | `@x,y` is from the viewport |
 | `[stuck]` | sticky, moved from its flow position |
-| `[rotated 30° from 100x20]`, `[scaled 1.50 from 100x20]` | the size is the upright bounding box, `from` the layout size |
+| `[rotated 30° from 100x20]`, `[scaled 1.50 from 100x20]`, `[scaled 2.00x1.00 from 100x20]`, `[flipped x from 100x20]` | the size is the upright bounding box, `from` the layout size; parts join with `, ` |
 | `[translated x -320 y 40]` | the own transform only moves the node |
 | `[animating]`, `[role carousel]` | motion facts (4.3) |
 | `[clips 5 of 8 children]` | a non-scrolling clip cuts 5 of its 8 direct children fully (`clipped-out` by it) or by 1 px or more (shown, with their clip inside its padding box) |
@@ -311,7 +313,7 @@ Tag order: frame, `rtl`/`ltr`, transform, `translated`, `animating`, `role`, vis
 since last run: 1 changed
   ~ body>main>section#pricing>ul.plans>li.plan[0]>span.plan-note 275x20 was 261x20
 summary: 3 findings
-  clipped right 14 by li.plan: span.plan-note
+  clipped end 14 by li.plan: span.plan-note
   covered top 24 by header.site: h2.section-title
   contrast 2.8, text #9ca3af: p.meta
 body 1280x2250
@@ -323,7 +325,7 @@ body 1280x2250
       h2.section-title "Pricing" 1040x44 [text 36/44][!! covered top 24 by header.site]
       ul.plans 1040x640 @0,92 [gaps across 32]
         li.plan 325x640 [pad 32][gaps 16][renders background, border, shadow]
-          span.plan-note "billed yearly, cancel…" 275x20 @0,120 [text 14/20][!! clipped right 14 by li.plan]
+          span.plan-note "billed yearly, cancel…" 275x20 @0,120 [text 14/20][!! clipped end 14 by li.plan]
         …×2 similar li.plan 325x640
     footer 1280x96 @0,1284 [pad 24 120][renders border-top]
       p.meta "© 2026 Acme Inc." 1040x20 [text 13/20][!! contrast 2.8]

@@ -12,6 +12,7 @@ import {
   getSiblingGroupNames,
   getUnion,
   hasBoxInk,
+  isScaled,
   roundPixels,
 } from './layout.ts';
 
@@ -121,7 +122,7 @@ function isShown(node: MeasuredNode): boolean {
 }
 
 function isTransformed(node: MeasuredNode): boolean {
-  return node.rotateDegrees !== 0 || node.scale !== 1 || node.isInsideTransform;
+  return node.rotateDegrees !== 0 || isScaled(node) || node.isInsideTransform;
 }
 
 function isScrollContainer(node: MeasuredNode): boolean {
@@ -265,7 +266,7 @@ function getClippedFindings(context: AnalysisContext): Finding[] {
         createFinding({
           kind: 'clipped',
           nodeIndex: node.index,
-          template: `clipped ${side} {n} by ${clipper?.name ?? 'viewport'}`,
+          template: `clipped ${getSideLabel(side, node.direction)} {n} by ${clipper?.name ?? 'viewport'}`,
           amount: overhangs[side],
           relatedIndex: clipperIndex,
         }),
@@ -631,7 +632,8 @@ function getOverlapsFindings(context: AnalysisContext): Finding[] {
       activeChildren.push(child);
 
       if (activeChildren.length > maxActiveOverlapCandidates) {
-        activeChildren.shift();
+        const firstEndingChild = activeChildren.reduce((first, active) => (getRight(active.rect) < getRight(first.rect) ? active : first));
+        activeChildren.splice(activeChildren.indexOf(firstEndingChild), 1);
       }
     }
   }
@@ -747,7 +749,7 @@ function getChildrenByGroupName(context: AnalysisContext, childIndexes: number[]
 
   for (const index of childIndexes) {
     const child = context.nodes[index];
-    if (!isShown(child) || child.position === 'fixed') continue;
+    if (!isShown(child) || child.position === 'fixed' || child.isInlineInText) continue;
 
     const groupName = context.siblingGroupNames[index];
     const sameGroupChildren = childrenByGroupName.get(groupName) ?? [];
@@ -1062,7 +1064,7 @@ function getSiblingGapsFindings(context: AnalysisContext): Finding[] {
   for (const parent of context.nodes) {
     const flowChildren = context.childIndexesByParent[parent.index]
       .map((index) => context.nodes[index])
-      .filter((child) => isShown(child) && child.isInFlow);
+      .filter((child) => isShown(child) && child.isInFlow && !child.isInlineInText);
     let runAxis: 'x' | 'y' | null = null;
     let runGaps: number[] = [];
     let runSiblingGroupName = '';
@@ -1361,8 +1363,9 @@ function getImageFindings(context: AnalysisContext): Finding[] {
       }
     }
 
-    if (node.tag === 'img' && !image.isVector && hasNaturalSize) {
-      const upscale = getImageScale(node, image.naturalWidth, image.naturalHeight, image.objectFit) * context.page.devicePixelRatio;
+    if (node.tag === 'img' && !image.isVector && hasNaturalSize && image.sourcePixelDensity !== null) {
+      const imageScale = getImageScale(node, image.naturalWidth, image.naturalHeight, image.objectFit);
+      const upscale = (imageScale * context.page.devicePixelRatio) / image.sourcePixelDensity;
 
       if (upscale >= 1.25) {
         findings.push(

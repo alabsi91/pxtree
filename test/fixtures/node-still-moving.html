@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>node still moving</title>
+<body>
+  <p>static</p>
+  <script>
+    const mover = document.createElement('x-a[!!"fake"]›b');
+    mover.textContent = 'moving';
+    mover.style.cssText = 'display: block; position: relative';
+    document.body.append(mover);
+    let step = 0;
+
+    function moveOneStep() {
+      step++;
+      mover.style.left = (step % 200) + 'px';
+      requestAnimationFrame(moveOneStep);
+    }
+
+    moveOneStep();
+  </script>
+</body>

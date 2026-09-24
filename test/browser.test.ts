@@ -22,12 +22,14 @@ interface PageOptions {
   width?: number;
   height?: number;
   colorScheme?: 'light' | 'dark';
+  deviceScaleFactor?: number;
 }
 
 async function openPage(options: PageOptions = {}): Promise<Page> {
   const context = await browser.newContext({
     viewport: { width: options.width ?? 1280, height: options.height ?? 800 },
     colorScheme: options.colorScheme ?? 'light',
+    deviceScaleFactor: options.deviceScaleFactor ?? 1,
   });
   await context.addInitScript({ content: browserBundle });
 
@@ -234,26 +236,26 @@ test('transforms: rotate, scale and the individual properties', async () => {
   const rotated = getNode(measurement, 'div.box.rotated');
 
   assert.equal(rotated.rotateDegrees, 30);
-  assert.equal(rotated.scale, 1);
+  assert.deepEqual(rotated.scale, { x: 1, y: 1 });
   assert.equal(rotated.layoutWidth, 100);
   assert.equal(rotated.layoutHeight, 20);
   assert.ok(Math.abs(rotated.rect.width - 96.6) < 0.1, 'visual width is the upright bounding box');
 
   const scaled = getNode(measurement, 'div.box.scaled');
 
-  assert.equal(scaled.scale, 1.5);
+  assert.deepEqual(scaled.scale, { x: 1.5, y: 1.5 });
   assert.equal(scaled.rect.width, 150);
   assert.equal(getNode(measurement, 'div.box.turned').rotateDegrees, 45);
 
   const moved = getNode(measurement, 'div.box.moved');
 
   assert.equal(moved.rotateDegrees, 0, 'translate is not a rotation');
-  assert.equal(moved.scale, 1);
+  assert.deepEqual(moved.scale, { x: 1, y: 1 });
 
   const both = getNode(measurement, 'div.box.both');
 
   assert.equal(both.rotateDegrees, 10);
-  assert.equal(both.scale, 2);
+  assert.deepEqual(both.scale, { x: 2, y: 2 });
 
   const tiltedText = measurement.nodes[rotated.index + 1];
 
@@ -300,6 +302,7 @@ test('shadow dom: open root with slots, closed root through attachShadow, declar
     selector: '.inner',
     matchedIndexes: [getNode(measurement, 'span.inner').index],
     matchedCount: 1,
+    unwalkedCount: 0,
   });
 
   const closedMatch = await measurePage(page, { elementSelector: '.closed-inner' });
@@ -437,7 +440,7 @@ test('settling finishes time-based animations and leaves scroll-driven ones alon
   assert.equal(heading.ink.opacity, 1);
   assert.equal(getNode(measurement, 'div.grower.wide').rect.width, 300);
   assert.equal(getNode(measurement, 'div.spinner').rotateDegrees, 0);
-  assert.ok(Math.abs(getNode(measurement, 'div.progress').scale - 0.5) < 0.05, 'the progress bar follows the scroll');
+  assert.ok(Math.abs(getNode(measurement, 'div.progress').scale.x - 0.5) < 0.05, 'the progress bar follows the scroll');
 
   const animationStates = await page.evaluate(() =>
     document.getAnimations().map((animation) => ({
@@ -515,6 +518,192 @@ test('measurePage on 3000 elements takes under 400 ms and leaves the DOM unchang
   assert.ok(timing.durationMs < 400, `measurePage took ${timing.durationMs.toFixed(0)} ms`);
   assert.equal(domAfter, domBefore);
 
+  await page.context().close();
+});
+
+function getNodeFindingTexts(measurement: PageMeasurement, node: MeasuredNode): string[] {
+  return analyze(measurement)
+    .findings.filter((finding) => finding.nodeIndex === node.index)
+    .map((finding) => finding.text);
+}
+
+test('a document without a body is walked from its root element', async () => {
+  const page = await openPage();
+  const svgMarkup = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="#06c"/></svg>';
+
+  await page.goto(`data:image/svg+xml,${encodeURIComponent(svgMarkup)}`);
+
+  const svgMeasurement = await measurePage(page);
+
+  assert.equal(svgMeasurement.nodes[0].tag, 'svg');
+  assert.equal(svgMeasurement.nodes[0].rect.width, 200);
+
+  await page.goto('about:blank');
+  await page.setContent('<p>no body</p>');
+  await page.evaluate(() => document.body.remove());
+
+  const bodilessMeasurement = await measurePage(page);
+
+  assert.equal(bodilessMeasurement.nodes[0].tag, 'html');
+
+  await page.context().close();
+});
+
+test('an inline element inside an inline element in running text is in the text too, a block child is not', async () => {
+  const page = await openPage();
+  await page.setContent('<p>Run <code><span class="tag"><span class="name">div</span></span></code> now</p><div><span class="alone">alone</span></div>');
+  const measurement = await measurePage(page);
+
+  assert.equal(getNode(measurement, 'code').isInlineInText, true);
+  assert.equal(getNode(measurement, 'span.tag').isInlineInText, true);
+  assert.equal(getNode(measurement, 'span.name').isInlineInText, true);
+  assert.equal(getNode(measurement, 'span.alone').isInlineInText, false);
+
+  await page.context().close();
+});
+
+test('transform axes: a flip is not a rotation, and each axis keeps its own scale', async () => {
+  const page = await openFixture('browser-transform-axes');
+  const measurement = await measurePage(page);
+
+  const flippedX = getNode(measurement, 'div.box.flip-x');
+
+  assert.equal(flippedX.rotateDegrees, 0);
+  assert.equal(flippedX.flippedAxis, 'x');
+  assert.deepEqual(flippedX.scale, { x: 1, y: 1 });
+  assert.equal(measurement.nodes[flippedX.index + 1].isInsideTransform, false, 'a mirrored icon does not put its children inside a rotation');
+
+  const flippedY = getNode(measurement, 'div.box.flip-y');
+
+  assert.equal(flippedY.rotateDegrees, 0);
+  assert.equal(flippedY.flippedAxis, 'y');
+  assert.deepEqual(getNode(measurement, 'div.box.squash').scale, { x: 1, y: 0.5 });
+  assert.equal(getNode(measurement, 'div.box.squash').flippedAxis, null);
+  assert.deepEqual(getNode(measurement, 'div.box.shrink').scale, { x: 0.5, y: 0.5 });
+
+  const turnedFlip = getNode(measurement, 'div.box.turned-flip');
+
+  assert.equal(turnedFlip.rotateDegrees, 30);
+  assert.equal(turnedFlip.flippedAxis, 'x');
+
+  await page.context().close();
+});
+
+test('will-change scroll-position does not make a containing block', async () => {
+  const page = await openFixture('browser-transform-axes');
+  const measurement = await measurePage(page);
+
+  assert.equal(getNode(measurement, 'div.escaper').visibility, 'shown', 'the absolute box escapes the overflow hidden box');
+
+  await page.context().close();
+});
+
+test('truncation: ellipsis needs a clipping overflow, and a scroll box does not cut its text', async () => {
+  const page = await openFixture('browser-truncation');
+  const measurement = await measurePage(page);
+
+  const ellipsisParagraph = getNode(measurement, 'p.ellipsis-visible');
+
+  assert.equal(ellipsisParagraph.textInfo!.truncation, null);
+  assert.ok(
+    getNodeFindingTexts(measurement, ellipsisParagraph).some((text) => text.startsWith('text overflows end')),
+    'the visible overflow reports text overflows',
+  );
+  assert.equal(getNode(measurement, 'div.scroller').textInfo!.truncation, null);
+
+  await page.context().close();
+});
+
+test('content-visibility auto asks the first child with a box', async () => {
+  const page = await openFixture('browser-content-visibility');
+  const measurement = await measurePage(page);
+
+  assert.equal(getNode(measurement, 'section.with-script').visibility, 'shown');
+  assert.equal(getNode(measurement, 'section.plain').visibility, 'shown');
+  assert.ok(measurement.nodes.some((node) => node.text === 'visible text here'));
+  assert.equal(getNode(measurement, 'section.far').visibility, 'content-skipped');
+
+  await page.context().close();
+});
+
+test('images: fractional layout size and srcset density', async () => {
+  const page = await openFixture('browser-image-size', { deviceScaleFactor: 2 });
+  await page.waitForFunction(() => [...document.images].every((image) => image.complete && image.naturalWidth > 0));
+
+  const measurement = await measurePage(page);
+  const halfImage = getNode(measurement, 'img.half');
+
+  assert.equal(halfImage.layoutHeight, 13.5);
+  assert.deepEqual(
+    getNodeFindingTexts(measurement, halfImage).filter((text) => text.startsWith('image aspect')),
+    [],
+  );
+
+  const retinaImage = getNode(measurement, 'img.retina');
+
+  assert.equal(retinaImage.image!.sourcePixelDensity, 2);
+  assert.deepEqual(getNodeFindingTexts(measurement, retinaImage), []);
+
+  const lowResolutionImage = getNode(measurement, 'img.low-res');
+
+  assert.equal(lowResolutionImage.image!.sourcePixelDensity, 1);
+  assert.deepEqual(getNodeFindingTexts(measurement, lowResolutionImage), ['image upscaled 2.0']);
+
+  await page.context().close();
+});
+
+test('the modal opened last is the modal, whatever its document order', async () => {
+  const page = await openFixture('browser-modal-order');
+  const measurement = await measurePage(page);
+
+  const lastOpened = getNode(measurement, 'dialog.second');
+  const firstOpened = getNode(measurement, 'dialog.first');
+
+  assert.equal(measurement.modalIndex, lastOpened.index);
+  assert.equal(lastOpened.isInert, false);
+  assert.equal(firstOpened.isInert, true);
+
+  await page.context().close();
+});
+
+test('coverage counts an overlay with an important pointer-events none from a class', async () => {
+  const page = await openFixture('browser-pointer-events');
+  const measurement = await measurePage(page);
+
+  assert.ok(getNode(measurement, 'p.under-class').coverage!.coverers.length > 0);
+  assert.ok(getNode(measurement, 'p.under-plain').coverage!.coverers.length > 0);
+  assert.deepEqual(
+    getNode(measurement, 'p.under-inline').coverage!.coverers,
+    [],
+    'known gap: an important inline pointer-events none beats the probe layer',
+  );
+
+  await page.context().close();
+});
+
+test('the sticky and single-line probes work under a style-src CSP', async () => {
+  const page = await openFixture('browser-csp');
+  const domBefore = await getDomFingerprint(page);
+
+  await scrollPage(page, 500);
+
+  const measurement = await measurePage(page);
+
+  assert.equal(await getDomFingerprint(page), domBefore);
+  assert.equal(getNode(measurement, 'header.sticky-bar').isStuck, true);
+
+  const cspSingleLineWidth = getNode(measurement, 'p.narrow').textInfo!.singleLineWidth!;
+  const fixtureMarkup = readFileSync(new URL('fixtures/browser-csp.html', import.meta.url), 'utf8');
+  const noPolicyPage = await openPage();
+
+  await noPolicyPage.setContent(fixtureMarkup.replace(/<meta http-equiv="Content-Security-Policy"[^>]*>/, ''));
+
+  const noPolicyMeasurement = await measurePage(noPolicyPage);
+
+  assert.ok(cspSingleLineWidth > 300, `${cspSingleLineWidth} on one line`);
+  assert.equal(cspSingleLineWidth, getNode(noPolicyMeasurement, 'p.narrow').textInfo!.singleLineWidth);
+
+  await noPolicyPage.context().close();
   await page.context().close();
 });
 

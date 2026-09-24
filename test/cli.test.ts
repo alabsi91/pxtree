@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
-import { readdirSync, readFileSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { execFile, spawn } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -120,12 +120,21 @@ test('--screenshot with several element matches captures the viewport and says w
   assert.ok(output.stdout.split('\n')[0].endsWith(` screenshot ${screenshotPath} 1280x800 (viewport, selector matched 2)`), output.stdout);
 });
 
+test('an --element that is not valid CSS, or empty, exits 2 with one line', async () => {
+  assertSingleErrorLine(await runCli([stateFixturePath, '--no-diff', '--element', 'div[']), 2, 'element failed: div[ is not a valid selector');
+  assertSingleErrorLine(await runCli([stateFixturePath, '--no-diff', '--element', '', '--aria']), 2, "element failed: '' is not a valid selector");
+});
+
 test('a missing script file exits 1', async () => {
   assertSingleErrorLine(await runCli([stateFixturePath, '--script', './no-such-script.mjs']), 1, 'script file not found: ./no-such-script.mjs');
 });
 
 test('a missing target file exits 2 with could not load', async () => {
   assertSingleErrorLine(await runCli(['test/fixtures/no-such-page.html']), 2, 'could not load file://');
+});
+
+test('a target that is neither a file nor a known host says both', async () => {
+  assertSingleErrorLine(await runCli(['no-such-folder/missing', '--no-diff']), 2, 'could not load no-such-folder/missing: no file at that path and no host named no-such-folder');
 });
 
 test('a throwing inline script exits 2 with script failed', async () => {
@@ -252,8 +261,80 @@ test('--scroll takes a comma list of stops, and a comma inside a selector stays 
   );
 });
 
-test('an empty --scroll stop exits 1', async () => {
-  assertSingleErrorLine(await runCli([stateFixturePath, '--scroll', '0,,end']), 1, 'bad --scroll: 0,,end');
+test('an empty --scroll stop exits 2 and says what a stop may be', async () => {
+  assertSingleErrorLine(await runCli([stateFixturePath, '--scroll', '0,,end']), 2, "scroll failed: '' is not a y offset of 0 or more, end, or a selector");
+});
+
+test('out of range numbers exit 1 with one line before the browser starts', async () => {
+  assertSingleErrorLine(await runCli([stateFixturePath, '--viewport', '99999x99999']), 1, 'bad viewport: 99999x99999, width and height must be at most 10000');
+  assertSingleErrorLine(await runCli([stateFixturePath, '--timeout', '1e12']), 1, 'bad --timeout: 1e12, expected at most 120000');
+  assertSingleErrorLine(await runCli([stateFixturePath, '--dpr', '100']), 1, 'bad --dpr: 100, expected at most 4');
+  assertSingleErrorLine(await runCli([stateFixturePath, '--max-chars', '0']), 1, 'bad --max-chars: 0, expected a positive number');
+});
+
+test('--screenshot without an extension gets .png, and an empty path, a directory or another type exits 1', async () => {
+  const screenshotBasePath = join(temporaryDirectory, 'shots', 'deeper', 'plain');
+  const output = await runCli([stateFixturePath, '--no-diff', '--report', 'summary', '--screenshot', screenshotBasePath]);
+
+  assert.equal(output.exitCode, 0, output.stderr);
+  assert.ok(existsSync(`${screenshotBasePath}.png`), output.stdout);
+  assertSingleErrorLine(await runCli([stateFixturePath, '--screenshot', '']), 1, 'bad --screenshot: empty path');
+  assertSingleErrorLine(await runCli([stateFixturePath, '--screenshot', temporaryDirectory]), 1, `bad --screenshot: ${temporaryDirectory} is a directory`);
+  assertSingleErrorLine(await runCli([stateFixturePath, '--screenshot', 'shot.webp']), 1, 'bad --screenshot: shot.webp, expected a .png, .jpg or .jpeg file');
+});
+
+test('--out that is a file or cannot be written exits 1 with one line before the browser starts', async () => {
+  const readOnlyDirectory = join(temporaryDirectory, 'read-only');
+  await mkdir(readOnlyDirectory);
+  await chmod(readOnlyDirectory, 0o555);
+
+  assertSingleErrorLine(await runCli([stateFixturePath, '--out', stateFixturePath]), 1, 'bad --out: ');
+  assertSingleErrorLine(await runCli([stateFixturePath, '--out', join(readOnlyDirectory, 'new')]), 1, `bad --out: cannot write to ${join(readOnlyDirectory, 'new')}`);
+});
+
+test('help, -h and guide with an argument', async () => {
+  const helpOutput = await runCli(['help']);
+  const shortOutput = await runCli(['-h']);
+
+  assert.equal(helpOutput.exitCode, 0, helpOutput.stderr);
+  assert.ok(helpOutput.stdout.startsWith('usage: pxtree'), helpOutput.stdout);
+  assert.equal(shortOutput.stdout, helpOutput.stdout);
+  assertSingleErrorLine(await runCli(['guide', 'extra']), 1, 'guide takes no arguments, got extra');
+});
+
+test('--json prints the result with its error on a failure too', async () => {
+  const output = await runCli(['test/fixtures/no-such-page.html', '--json']);
+  const result = JSON.parse(output.stdout);
+
+  assert.equal(output.exitCode, 2);
+  assert.equal(result.error.kind, 'load');
+  assert.deepEqual(result.runs, []);
+  assert.ok(output.stderr.startsWith('could not load file://'), output.stderr);
+});
+
+test('--max-chars cuts the tree and says so on the last line', async () => {
+  const output = await runCli([stateFixturePath, '--no-diff', '--max-chars', '200']);
+  const outputLines = output.stdout.trimEnd().split('\n');
+
+  assert.equal(output.exitCode, 0, output.stderr);
+  assert.equal(outputLines.at(-1), 'output cut at 200 characters, use --report findings, --element or --max-chars');
+});
+
+test('ctrl-c and SIGTERM close the browser and exit quietly with 130 and 143', async () => {
+  for (const [signalName, expectedExitCode] of [['SIGINT', 130], ['SIGTERM', 143]] as const) {
+    const cliProcess = spawn(process.execPath, [cliPath, stateFixturePath, '--no-diff', '--script', 'await page.waitForTimeout(20000)'], {
+      cwd: projectDirectory,
+    });
+    let stderrText = '';
+    cliProcess.stderr.on('data', (chunk) => (stderrText += chunk));
+
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    cliProcess.kill(signalName);
+    const exitCode = await new Promise<number | null>((resolve) => cliProcess.once('exit', resolve));
+
+    assert.equal(exitCode, expectedExitCode, stderrText);
+    assert.equal(stderrText, '');
+  }
 });
 
 test('the skill file is current with the guide', () => {

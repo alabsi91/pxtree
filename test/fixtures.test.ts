@@ -41,7 +41,8 @@ test('simple.html prints positions, padding, gaps and text with no findings', as
   const cardLine = findLine(reportLines, 'li.card ');
 
   assert.ok(cardLine.includes('[pad 16][gaps 8][renders background, border]'), cardLine);
-  assert.ok(cardLine.endsWith(' ×3'), cardLine);
+  assert.ok(!cardLine.endsWith(' ×3'), cardLine);
+  findLine(reportLines, '…×2 similar li.card 325x94');
 });
 
 test('dedup.html folds identical, similar and wrapper lines but never a finding', async () => {

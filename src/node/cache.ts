@@ -18,7 +18,7 @@ export async function readSnapshot(cacheDirectory: string, snapshotKey: string):
   try {
     const snapshot = JSON.parse(await readFile(join(cacheDirectory, `${snapshotKey}.json`), 'utf8')) as Snapshot;
 
-    return snapshot.version === 1 ? snapshot : null;
+    return snapshot.version === 3 ? snapshot : null;
   } catch {
     return null;
   }

@@ -22,13 +22,18 @@ export function getBottom(rect: Rect): number {
   return rect.y + rect.height;
 }
 
+/** True when the node's own transform scales either axis. */
+export function isScaled(node: MeasuredNode): boolean {
+  return node.scale.x !== 1 || node.scale.y !== 1;
+}
+
 /**
  * Drawn size over layout size on each axis. Border and padding are layout values, and a scale draws them bigger or
  * smaller. It is 1 outside transforms.
  */
 function getDrawnScale(node: MeasuredNode): { x: number; y: number } {
-  const isScaled = node.scale !== 1 || node.isInsideTransform;
-  if (!isScaled || node.layoutWidth <= 0 || node.layoutHeight <= 0) {
+  const isDrawnScaled = isScaled(node) || node.isInsideTransform;
+  if (!isDrawnScaled || node.layoutWidth <= 0 || node.layoutHeight <= 0) {
     return { x: 1, y: 1 };
   }
 
@@ -104,9 +109,23 @@ export function getChildIndexesByParent(page: PageMeasurement): number[][] {
   return childIndexesByParent;
 }
 
+function isUngroupedPair(page: PageMeasurement, sameTagIndexes: number[]): boolean {
+  if (sameTagIndexes.length !== 2) {
+    return false;
+  }
+
+  const [firstClassNames, secondClassNames] = sameTagIndexes.map((index) => getNameClassNames(page.nodes[index].name));
+  const hasSharedClass = firstClassNames.some((className) => secondClassNames.includes(className));
+  const hasAnyClass = firstClassNames.length > 0 || secondClassNames.length > 0;
+
+  return hasAnyClass && !hasSharedClass;
+}
+
 /**
- * The name that groups each node with its siblings. It is the tag plus the classes of its name that at least half of its
- * same-tag siblings carry. A rarer class such as `active` does not split the group. Roots keep their own name.
+ * The name that groups each node with its siblings. It is the tag plus the classes of its name that more than half of
+ * its same-tag siblings carry, or at least two of them. A class on one sibling, such as `active`, does not split the
+ * group. Two same-tag siblings group only when they share a class or both have none. Otherwise they keep their own
+ * names. Roots keep their own name.
  */
 export function getSiblingGroupNames(page: PageMeasurement, childIndexesByParent: number[][]): string[] {
   const siblingGroupNames = page.nodes.map((node) => node.name);
@@ -123,6 +142,8 @@ export function getSiblingGroupNames(page: PageMeasurement, childIndexesByParent
     }
 
     for (const [tag, sameTagIndexes] of childIndexesByTag) {
+      if (isUngroupedPair(page, sameTagIndexes)) continue;
+
       const siblingCountByClassName = new Map<string, number>();
 
       for (const index of sameTagIndexes) {
@@ -132,9 +153,11 @@ export function getSiblingGroupNames(page: PageMeasurement, childIndexesByParent
       }
 
       for (const index of sameTagIndexes) {
-        const sharedClassNames = getNameClassNames(page.nodes[index].name).filter(
-          (className) => siblingCountByClassName.get(className)! * 2 >= sameTagIndexes.length,
-        );
+        const sharedClassNames = getNameClassNames(page.nodes[index].name).filter((className) => {
+          const siblingCount = siblingCountByClassName.get(className)!;
+
+          return siblingCount * 2 > sameTagIndexes.length || siblingCount >= 2;
+        });
 
         siblingGroupNames[index] = [tag, ...sharedClassNames].join('.');
       }

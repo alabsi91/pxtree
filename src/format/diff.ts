@@ -1,4 +1,4 @@
-import type { Analysis, PageMeasurement, Snapshot, SnapshotNode } from '../types.ts';
+import type { Analysis, NodeIdentity, PageMeasurement, Snapshot, SnapshotNode } from '../types.ts';
 import { roundPixels } from '../findings/layout.ts';
 import { createPageTree, getFindingsText, getNodeTags } from './format.ts';
 
@@ -11,27 +11,43 @@ interface DiffEntry {
   moveKey: string | null;
 }
 
-/** Node paths by node index. A path joins the names from the root with `>`. A name gets `[n]` when its parent has several children of that name. */
+function getPathName(identity: NodeIdentity): string {
+  const idText = identity.id === null ? '' : `#${identity.id}`;
+  const classText = identity.classNames
+    .slice(0, 2)
+    .map((className) => `.${className}`)
+    .join('');
+
+  return `${identity.tag}${idText}${classText}`;
+}
+
+/**
+ * Node paths by node index. A path joins path names from the root with `>`. A path name is the tag, the id and the first two
+ * classes in source order. It gets `[n]` when its parent has several children with that path name.
+ */
 export function getNodePaths(page: PageMeasurement): string[] {
-  const nameCountsByParent = new Map<number, Map<string, number>>();
-  const nameSeenCountsByParent = new Map<number, Map<string, number>>();
+  const pathNames = page.nodes.map((node) => getPathName(node.identity));
+  const pathNameCountsByParent = new Map<number, Map<string, number>>();
+  const pathNameSeenCountsByParent = new Map<number, Map<string, number>>();
   const nodePaths: string[] = [];
 
   for (const node of page.nodes) {
-    const nameCounts = nameCountsByParent.get(node.parentIndex) ?? new Map<string, number>();
+    const pathNameCounts = pathNameCountsByParent.get(node.parentIndex) ?? new Map<string, number>();
+    const pathName = pathNames[node.index];
 
-    nameCounts.set(node.name, (nameCounts.get(node.name) ?? 0) + 1);
-    nameCountsByParent.set(node.parentIndex, nameCounts);
+    pathNameCounts.set(pathName, (pathNameCounts.get(pathName) ?? 0) + 1);
+    pathNameCountsByParent.set(node.parentIndex, pathNameCounts);
   }
 
   for (const node of page.nodes) {
-    const nameCount = nameCountsByParent.get(node.parentIndex)!.get(node.name)!;
-    const seenCounts = nameSeenCountsByParent.get(node.parentIndex) ?? new Map<string, number>();
-    const position = seenCounts.get(node.name) ?? 0;
-    const segment = nameCount > 1 ? `${node.name}[${position}]` : node.name;
+    const pathName = pathNames[node.index];
+    const pathNameCount = pathNameCountsByParent.get(node.parentIndex)!.get(pathName)!;
+    const seenCounts = pathNameSeenCountsByParent.get(node.parentIndex) ?? new Map<string, number>();
+    const position = seenCounts.get(pathName) ?? 0;
+    const segment = pathNameCount > 1 ? `${pathName}[${position}]` : pathName;
 
-    seenCounts.set(node.name, position + 1);
-    nameSeenCountsByParent.set(node.parentIndex, seenCounts);
+    seenCounts.set(pathName, position + 1);
+    pathNameSeenCountsByParent.set(node.parentIndex, seenCounts);
     nodePaths.push(node.parentIndex === -1 ? segment : `${nodePaths[node.parentIndex]}>${segment}`);
   }
 
@@ -56,10 +72,11 @@ export function createSnapshot(page: PageMeasurement, analysis: Analysis): Snaps
         .map((tag) => `[${tag}]`)
         .join(' '),
       findings: tree.findingsByNode[node.index].map((finding) => finding.text),
+      text: node.text,
     };
   }
 
-  return { version: 1, nodes: snapshotNodes };
+  return { version: 3, nodes: snapshotNodes };
 }
 
 function getTagList(tags: string): string[] {
@@ -101,6 +118,10 @@ function getChangeDescription(previous: SnapshotNode, current: SnapshotNode): st
     changeTexts.push(getChangeText(getFindingsText(addedFindings), getFindingsText(removedFindings)));
   }
 
+  if (previous.text !== current.text) {
+    changeTexts.push('text changed');
+  }
+
   return changeTexts.length === 0 ? null : changeTexts.join(', ');
 }
 
@@ -109,7 +130,7 @@ function getPureMoveKey(previous: SnapshotNode, current: SnapshotNode): string |
   const isSameSize = previous.width === current.width && previous.height === current.height;
   const isSameFindings = previous.findings.join('; ') === current.findings.join('; ');
   const isMoved = previous.x !== current.x || previous.y !== current.y;
-  const isPureMove = isSameSize && previous.tags === current.tags && isSameFindings && isMoved;
+  const isPureMove = isSameSize && previous.tags === current.tags && isSameFindings && previous.text === current.text && isMoved;
 
   return isPureMove ? `${current.x - previous.x},${current.y - previous.y}` : null;
 }

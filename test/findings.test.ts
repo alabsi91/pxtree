@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { analyze, getContrastRatio } from '../src/findings/findings.ts';
-import { getNodeLayouts } from '../src/findings/layout.ts';
+import { getChildIndexesByParent, getNodeLayouts, getSiblingGroupNames } from '../src/findings/layout.ts';
 import type { Ink, MeasuredNode, PageMeasurement, Rect, TextInfo } from '../src/types.ts';
 
 type NodeSpec = Partial<Omit<MeasuredNode, 'index' | 'depth' | 'subtreeEnd'>> & { parentIndex: number; rect: Rect };
@@ -53,6 +53,7 @@ function createNode(index: number, spec: NodeSpec): MeasuredNode {
   return {
     tag,
     name: tag,
+    identity: { tag, id: null, classNames: [] },
     text: '',
     visibility: 'shown',
     clippedOutByIndex: null,
@@ -60,7 +61,8 @@ function createNode(index: number, spec: NodeSpec): MeasuredNode {
     layoutWidth: spec.rect.width,
     layoutHeight: spec.rect.height,
     rotateDegrees: 0,
-    scale: 1,
+    scale: { x: 1, y: 1 },
+    flippedAxis: null,
     translate: null,
     isInsideTransform: false,
     isAnimating: false,
@@ -130,7 +132,7 @@ function createPage(nodeSpecs: NodeSpec[], overrides: Partial<PageMeasurement> =
     isScrollLocked: false,
     modalIndex: null,
     failedFontFamilies: [],
-    isNodeCapReached: false,
+    cappedElementCount: null,
     nodes,
     topLayerIndexes: [],
     element: null,
@@ -146,6 +148,27 @@ function getFindingTexts(page: PageMeasurement): string[] {
 }
 
 describe('layout', () => {
+  function getGroupNamesOfChildren(childNames: string[]): string[] {
+    const childSpecs = childNames.map((name, position) => ({ parentIndex: 0, name, rect: createRect(position * 100, 0, 100, 40) }));
+    const page = createPage([bodySpec, ...childSpecs]);
+
+    return getSiblingGroupNames(page, getChildIndexesByParent(page)).slice(1);
+  }
+
+  test('two same-tag siblings group when they share a class or both have none', () => {
+    assert.deepEqual(getGroupNamesOfChildren(['li.card', 'li.card.featured']), ['li.card', 'li.card']);
+    assert.deepEqual(getGroupNamesOfChildren(['div', 'div']), ['div', 'div']);
+  });
+
+  test('two same-tag siblings with no shared class keep their own names', () => {
+    assert.deepEqual(getGroupNamesOfChildren(['div.sidebar', 'div.content']), ['div.sidebar', 'div.content']);
+    assert.deepEqual(getGroupNamesOfChildren(['div', 'div.content']), ['div', 'div.content']);
+  });
+
+  test('three or more same-tag siblings keep the majority rule', () => {
+    assert.deepEqual(getGroupNamesOfChildren(['div.sidebar', 'div.content', 'div.aside']), ['div', 'div', 'div']);
+  });
+
   test('@x,y is measured from the parent content box', () => {
     const page = createPage([
       bodySpec,
@@ -177,7 +200,7 @@ describe('layout', () => {
         rect: createRect(100, 100, 248, 88),
         layoutWidth: 124,
         layoutHeight: 44,
-        scale: 2,
+        scale: { x: 2, y: 2 },
         border: [2, 2, 2, 2],
         padding: [10, 10, 10, 10],
       },
@@ -310,7 +333,11 @@ describe('clipped', () => {
   }
 
   test('fires on text past a clip, said once down a branch', () => {
-    assert.deepEqual(getFindingTexts(createClippedPage()), ['span: clipped right 14 by div.panel']);
+    assert.deepEqual(getFindingTexts(createClippedPage()), ['span: clipped end 14 by div.panel']);
+  });
+
+  test('names the side start or end by the node direction, like overflows', () => {
+    assert.deepEqual(getFindingTexts(createClippedPage({}, { direction: 'rtl' })), ['span: clipped start 14 by div.panel']);
   });
 
   test('does not fire when the clipper scrolls on that axis', () => {
@@ -320,7 +347,7 @@ describe('clipped', () => {
   test('does not fire on a box without text or control', () => {
     const texts = getFindingTexts(createClippedPage({}, { textInfo: null }));
 
-    assert.deepEqual(texts, ['b: clipped right 20 by div.panel']);
+    assert.deepEqual(texts, ['b: clipped end 20 by div.panel']);
   });
 
   test('each axis names its own clipper, and the viewport by name', () => {
@@ -331,7 +358,7 @@ describe('clipped', () => {
       { parentIndex: 1, name: 'span', rect: createRect(0, 780, 214, 40), clip, textInfo: createTextInfo(createRect(0, 780, 214, 40)) },
     ]);
 
-    assert.deepEqual(getFindingTexts(page), ['span: clipped right 14 by div.panel', 'span: clipped bottom 20 by viewport']);
+    assert.deepEqual(getFindingTexts(page), ['span: clipped end 14 by div.panel', 'span: clipped bottom 20 by viewport']);
   });
 
   function createClippedOutPage(panelRect = createRect(0, 0, 300, 60), parentVisibility: MeasuredNode['visibility'] = 'shown'): PageMeasurement {
@@ -675,7 +702,7 @@ describe('overlaps', () => {
       bodySpec,
       { parentIndex: 0, name: 'div.row', rect: createRect(0, 0, 1000, 600), ...parentOverrides },
       { parentIndex: 1, name: 'div.first', rect: createRect(0, 0, 200, 100), ink: backgroundInk },
-      { parentIndex: 1, name: 'div.second', rect: createRect(150, 50, 200, 100), ink: backgroundInk, ...secondOverrides },
+      { parentIndex: 1, name: 'section.second', rect: createRect(150, 50, 200, 100), ink: backgroundInk, ...secondOverrides },
     ]);
   }
 
@@ -688,7 +715,7 @@ describe('overlaps', () => {
   });
 
   test('absolute siblings count', () => {
-    assert.deepEqual(getFindingTexts(createOverlapPage({ position: 'absolute', isInFlow: false })), ['div.second: overlaps div.first 50x50']);
+    assert.deepEqual(getFindingTexts(createOverlapPage({ position: 'absolute', isInFlow: false })), ['section.second: overlaps div.first 50x50']);
   });
 
   test('exclusions do not fire', () => {
@@ -729,10 +756,10 @@ describe('overlaps', () => {
         textInfo: createTextInfo(createRect(0, 0, 200, 100)),
         coverage: { sampleCount: 40, coveredSampleCount: 10, coverers: [{ index: 4, sampleCount: 10, isTranslucent: false }] },
       },
-      { parentIndex: 1, name: 'div.second', rect: createRect(150, 50, 200, 100), ink: backgroundInk },
+      { parentIndex: 1, name: 'section.second', rect: createRect(150, 50, 200, 100), ink: backgroundInk },
     ]);
 
-    assert.deepEqual(getFindingTexts(page), ['p: covered 13% by div.second']);
+    assert.deepEqual(getFindingTexts(page), ['p: covered 13% by section.second']);
   });
 
   function createAvatarPage(avatarStarts: number[]): PageMeasurement {
@@ -753,6 +780,27 @@ describe('overlaps', () => {
       'img.avatar: overlaps img.avatar 10x40',
       'img.avatar: overlaps img.avatar 10x40',
     ]);
+  });
+
+  test('a wide sibling stays in the sweep when many narrower ones start after it', () => {
+    const narrowSiblingSpecs: NodeSpec[] = Array.from({ length: 51 }, (_unused, position) => ({
+      parentIndex: 1,
+      name: 'div.row-item',
+      rect: createRect(1 + position, 100 + position * 30, 500, 20),
+      ink: backgroundInk,
+    }));
+    const page = createPage([
+      bodySpec,
+      { parentIndex: 0, name: 'div.board', rect: createRect(0, 0, 1000, 1800) },
+      { parentIndex: 1, name: 'div.banner', rect: createRect(0, 0, 1000, 20), ink: backgroundInk },
+      ...narrowSiblingSpecs,
+      { parentIndex: 1, name: 'div.badge', rect: createRect(600, 10, 100, 20), ink: backgroundInk },
+    ]);
+    const overlapTexts = analyze(page)
+      .findings.filter((finding) => finding.kind === 'overlaps')
+      .map((finding) => finding.text);
+
+    assert.deepEqual(overlapTexts, ['overlaps div.banner 100x10']);
   });
 
   test('a run with a different overlap fires', () => {
@@ -962,6 +1010,13 @@ describe('tops across siblings and wider', () => {
     ]);
   });
 
+  test('a state class on one of two cards does not split the pair', () => {
+    const page = createCardRow([100, 116]);
+    page.nodes[5].name = 'li.card.featured';
+
+    assert.deepEqual(getFindingTexts(page), ['ul.cards: a.button tops 100..116 across siblings']);
+  });
+
   test('a card pushed down in its row fires with its own top, measured in the parent', () => {
     const page = createCardRow([100, 100, 100, 100]);
     page.nodes[8].name = 'li.card.alert';
@@ -1055,6 +1110,41 @@ describe('starts across siblings', () => {
     });
 
     assert.deepEqual(getFindingTexts(createPage(nodeSpecs)), ['form: input starts 100..105 across siblings']);
+  });
+});
+
+describe('inline elements in running text', () => {
+  /** Real-site cases: MDN `code starts 97..570 across siblings: p`, Wikipedia `a starts across siblings: p`, MDN `gaps 7 147 7 35 7 between span.token.tag`. */
+  function createProsePage(isInlineInText: boolean): PageMeasurement {
+    const inlineSpec = { display: 'inline', isInline: true, isInlineInText };
+    const nodeSpecs: NodeSpec[] = [
+      bodySpec,
+      { parentIndex: 0, name: 'p', rect: createRect(0, 0, 800, 72), textRuns: [{ rect: createRect(0, 0, 800, 72), afterChildCount: 0 }] },
+      { parentIndex: 1, name: 'code', rect: createRect(97, 0, 60, 20), ...inlineSpec },
+      { parentIndex: 1, name: 'code', rect: createRect(300, 24, 60, 20), ...inlineSpec },
+      { parentIndex: 1, name: 'code', rect: createRect(570, 48, 60, 20), ...inlineSpec },
+      { parentIndex: 0, name: 'code', rect: createRect(0, 100, 800, 20), textRuns: [{ rect: createRect(0, 100, 800, 20), afterChildCount: 0 }] },
+    ];
+    let spanStart = 0;
+
+    for (const gap of [0, 7, 147, 7, 35, 7]) {
+      spanStart += gap;
+      nodeSpecs.push({ parentIndex: 5, name: 'span.token.tag', rect: createRect(spanStart, 100, 20, 20), ...inlineSpec });
+      spanStart += 20;
+    }
+
+    return createPage(nodeSpecs);
+  }
+
+  test('code and links inside a paragraph and highlight spans inside code take part in no sibling rule', () => {
+    assert.deepEqual(getFindingTexts(createProsePage(true)), []);
+  });
+
+  test('the same boxes outside running text still get the sibling findings', () => {
+    const findingTexts = getFindingTexts(createProsePage(false));
+
+    assert.ok(findingTexts.includes('p: code starts 97..570 across siblings'), findingTexts.join('\n'));
+    assert.ok(findingTexts.some((findingText) => findingText.startsWith('code: gaps 7 147 7 35 7 between span')), findingTexts.join('\n'));
   });
 });
 
@@ -1248,7 +1338,16 @@ describe('small target', () => {
 
 describe('images', () => {
   function createImagePage(imageOverrides: Partial<NonNullable<MeasuredNode['image']>>, nodeOverrides: Partial<NodeSpec> = {}, devicePixelRatio = 1): PageMeasurement {
-    const image = { naturalWidth: 100, naturalHeight: 100, isComplete: true, hasSource: true, isVector: false, objectFit: 'fill', ...imageOverrides };
+    const image = {
+      naturalWidth: 100,
+      naturalHeight: 100,
+      isComplete: true,
+      hasSource: true,
+      isVector: false,
+      objectFit: 'fill',
+      sourcePixelDensity: 1,
+      ...imageOverrides,
+    };
 
     return createPage(
       [bodySpec, { parentIndex: 0, tag: 'img', name: 'img', rect: createRect(0, 0, 100, 100), ink: createInk({ replaced: 'img' }), image, ...nodeOverrides }],
@@ -1277,6 +1376,12 @@ describe('images', () => {
     assert.deepEqual(getFindingTexts(createImagePage({}, {}, 2)), ['img: image upscaled 2.0']);
     assert.deepEqual(getFindingTexts(createImagePage({ isVector: true }, {}, 2)), []);
     assert.deepEqual(getFindingTexts(createImagePage({ naturalWidth: 200, naturalHeight: 200 }, {}, 2)), []);
+  });
+
+  test('a 2x srcset candidate at a device pixel ratio of 2 is not upscaled', () => {
+    assert.deepEqual(getFindingTexts(createImagePage({ sourcePixelDensity: 2 }, {}, 2)), []);
+    assert.deepEqual(getFindingTexts(createImagePage({ sourcePixelDensity: 1 }, {}, 2)), ['img: image upscaled 2.0']);
+    assert.deepEqual(getFindingTexts(createImagePage({ sourcePixelDensity: null }, {}, 2)), []);
   });
 });
 
@@ -1319,7 +1424,7 @@ describe('behind a modal', () => {
   });
 
   test('an element match behind the modal keeps its findings', () => {
-    const analysis = analyze(createModalPage({ selector: '.close', matchedIndexes: [1], matchedCount: 1 }));
+    const analysis = analyze(createModalPage({ selector: '.close', matchedIndexes: [1], matchedCount: 1, unwalkedCount: 0 }));
 
     assert.deepEqual(analysis.findings.map((finding) => finding.nodeIndex), [1, 4]);
     assert.equal(analysis.behindModalFindingCount, 0);

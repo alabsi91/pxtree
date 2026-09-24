@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -129,10 +131,12 @@ test('inputs are bounded: viewport sides, viewport count and timeout', async () 
 test('a file target outside the working directory returns a tool error', async () => {
   const outsidePath = await client.callTool({ name: 'measure', arguments: { target: '../outside.html', diff: false } });
   const outsideUrl = await client.callTool({ name: 'measure', arguments: { target: 'file:///etc/hostname', diff: false } });
+  const upperCaseUrl = await client.callTool({ name: 'measure', arguments: { target: 'FILE:///etc/hostname', diff: false } });
 
   assert.equal(outsidePath.isError, true);
   assert.equal(getResultText(outsidePath), 'file target outside the working directory: ../outside.html');
   assert.equal(outsideUrl.isError, true);
+  assert.equal(getResultText(upperCaseUrl), 'file target outside the working directory: FILE:///etc/hostname');
 });
 
 test('report findings prints only lines with findings and their ancestors', async () => {
@@ -168,6 +172,43 @@ test('parallel measure calls run one at a time and each returns its own result',
     assert.ok(resultText.startsWith(`${viewportWidths[index]}x800 light`), resultText);
     assert.match(resultText, /p "contexts 1"/);
   }
+});
+
+test('a page that hangs times out and the next call still measures', async () => {
+  const hangResult = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/node-hang.html', diff: false, timeout: 3000 } });
+  const nextResult = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/state.html', diff: false, report: 'none', aria: true } });
+
+  assert.equal(hangResult.isError, true);
+  assert.match(getResultText(hangResult), /^measurement timed out after 3000 ms during \w+$/);
+  assert.notEqual(nextResult.isError, true, getResultText(nextResult));
+});
+
+test('SIGTERM closes the browser, removes the screenshot directory and exits 143', async () => {
+  const signalClient = new Client({ name: 'pxtree-signal-test', version: '0.0.0' });
+  const transport = new StdioClientTransport({ command: process.execPath, args: [join(projectDirectory, 'dist', 'cli.js'), 'mcp'], cwd: projectDirectory });
+  await signalClient.connect(transport);
+
+  const result = await signalClient.callTool({ name: 'measure', arguments: { target: 'test/fixtures/state.html', diff: false, report: 'summary', screenshot: true } });
+  const screenshotPath = getResultText(result).match(/screenshot: (\S+)/)![1];
+  const serverProcessId = transport.pid!;
+  const browserProcessIds = execFileSync('pgrep', ['-P', String(serverProcessId)], { encoding: 'utf8' }).trim().split('\n');
+
+  process.kill(serverProcessId, 'SIGTERM');
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+
+  const isRunning = (processId: number) => {
+    try {
+      process.kill(processId, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  assert.equal(isRunning(serverProcessId), false);
+  assert.ok(browserProcessIds.every((processId) => !isRunning(Number(processId))), browserProcessIds.join(' '));
+  assert.equal(existsSync(dirname(screenshotPath)), false);
+  await signalClient.close();
 });
 
 test('a bad target returns a tool error with the CLI message', async () => {

@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>pointer events none overlays</title>
+    <style>
+      body { margin: 0; padding: 20px; font-family: sans-serif; }
+      .card { position: relative; margin-bottom: 20px; }
+      .shade { position: absolute; inset: 0; background: #fff; }
+      .pointer-events-none-important { pointer-events: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="card"><p class="under-class">text under a class overlay</p><div class="shade pointer-events-none-important"></div></div>
+    <div class="card"><p class="under-plain">text under a plain overlay</p><div class="shade" style="pointer-events: none"></div></div>
+    <div class="card"><p class="under-inline">text under an inline important overlay</p><div class="shade" style="pointer-events: none !important"></div></div>
+  </body>
+</html>

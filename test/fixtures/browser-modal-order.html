@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>modal open order</title>
+  </head>
+  <body>
+    <dialog class="second"><p>second dialog opened last</p></dialog>
+    <dialog class="first"><p>first dialog opened first</p></dialog>
+    <script>
+      document.querySelector('dialog.first').showModal();
+      document.querySelector('dialog.second').showModal();
+    </script>
+  </body>
+</html>

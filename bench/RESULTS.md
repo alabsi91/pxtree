@@ -26,8 +26,8 @@ Previous run, before those fixes: found 36 of 47 (77%), noise 1.4 per buggy page
 ## Totals
 
 - bugs planted 47, found 42, recall 89%
-- noise lines per buggy page 1.5, per clean page 3.3
-- runs 33, median wall time 476 ms, median output 33 lines, median approx tokens 510
+- noise lines per buggy page 1.4, per clean page 3.3
+- runs 33, median wall time 535 ms, median output 33 lines, median approx tokens 553
 
 ## Per page
 
@@ -35,23 +35,23 @@ Times, lines and tokens are per run, in the order of the runs column. Tokens are
 
 | page | runs | bugs | found | missed | noise | ms | lines | tokens |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| blog | default, mobile, dark | 4 | 4 | 0 | 1 | 480 / 520 / 475 | 32 / 33 / 33 | 490 / 510 / 506 |
-| carousel | default | 3 | 3 | 0 | 2 | 483 | 29 | 462 |
-| chat | default, mobile | 4 | 4 | 0 | 5 | 470 / 480 | 47 / 49 | 922 / 1115 |
-| clean-carousel (clean) | default, mobile | 0 | 0 | 0 | 7 | 452 / 454 | 34 / 33 | 567 / 541 |
-| clean-hero (clean) | default, mobile | 0 | 0 | 0 | 2 | 476 / 488 | 25 / 24 | 354 / 328 |
-| clean-menu (clean) | default, mobile | 0 | 0 | 0 | 1 | 488 / 487 | 22 / 18 | 317 / 278 |
-| dashboard | default, mobile | 4 | 3 | 1 | 1 | 430 / 470 | 39 / 36 | 590 / 526 |
-| grid-areas | default, mobile | 3 | 3 | 0 | 0 | 473 / 554 | 34 / 30 | 521 / 505 |
-| hero | default, mobile | 3 | 2 | 1 | 2 | 474 / 478 | 27 / 32 | 401 / 468 |
-| modal | default, open | 3 | 2 | 1 | 2 | 385 / 495 | 11 / 34 | 167 / 702 |
-| nav-dropdown | default, mobile, menu | 3 | 3 | 0 | 5 | 424 / 445 / 759 | 17 / 16 / 23 | 286 / 261 / 391 |
-| pricing | default, mobile | 3 | 2 | 1 | 2 | 476 / 526 | 44 / 27 | 633 / 399 |
-| products | default | 4 | 3 | 1 | 1 | 471 | 46 | 786 |
-| rtl | default | 3 | 3 | 0 | 0 | 458 | 40 | 683 |
-| settings | default, dialog | 3 | 3 | 0 | 0 | 487 / 524 | 38 / 12 | 597 / 204 |
-| sticky | default, pricing | 3 | 3 | 0 | 0 | 519 / 502 | 47 / 48 | 641 / 673 |
-| table | default, mobile | 4 | 4 | 0 | 0 | 474 / 461 | 67 / 68 | 1019 / 1047 |
+| blog | default, mobile, dark | 4 | 4 | 0 | 1 | 559 / 615 / 545 | 33 / 33 / 34 | 536 / 549 / 553 |
+| carousel | default | 3 | 3 | 0 | 2 | 561 | 30 | 506 |
+| chat | default, mobile | 4 | 4 | 0 | 3 | 535 / 534 | 47 / 47 | 959 / 1051 |
+| clean-carousel (clean) | default, mobile | 0 | 0 | 0 | 7 | 526 / 522 | 34 / 33 | 611 / 598 |
+| clean-hero (clean) | default, mobile | 0 | 0 | 0 | 2 | 529 / 541 | 25 / 24 | 381 / 364 |
+| clean-menu (clean) | default, mobile | 0 | 0 | 0 | 1 | 552 / 561 | 22 / 18 | 325 / 286 |
+| dashboard | default, mobile | 4 | 3 | 1 | 1 | 530 / 521 | 43 / 36 | 648 / 526 |
+| grid-areas | default, mobile | 3 | 3 | 0 | 0 | 534 / 633 | 35 / 31 | 557 / 568 |
+| hero | default, mobile | 3 | 2 | 1 | 2 | 554 / 571 | 27 / 32 | 414 / 499 |
+| modal | default, open | 3 | 2 | 1 | 2 | 480 / 601 | 12 / 34 | 175 / 704 |
+| nav-dropdown | default, mobile, menu | 3 | 3 | 0 | 5 | 490 / 513 / 873 | 17 / 16 / 23 | 296 / 278 / 414 |
+| pricing | default, mobile | 3 | 2 | 1 | 2 | 532 / 573 | 48 / 29 | 664 / 437 |
+| products | default | 4 | 3 | 1 | 1 | 516 | 50 | 887 |
+| rtl | default | 3 | 3 | 0 | 0 | 510 | 42 | 709 |
+| settings | default, dialog | 3 | 3 | 0 | 0 | 533 / 587 | 38 / 12 | 613 / 208 |
+| sticky | default, pricing | 3 | 3 | 0 | 0 | 564 / 586 | 48 / 49 | 661 / 693 |
+| table | default, mobile | 4 | 4 | 0 | 0 | 501 / 529 | 67 / 68 | 1050 / 1079 |
 
 ## Per bug kind
 
@@ -82,56 +82,56 @@ Times, lines and tokens are per run, in the order of the runs column. Tokens are
 | blog | text overflow | default | yes: text overflows end 109: div.permalink | yes | URL runs out of the card |
 | blog | overflow at 390 | mobile | yes: past viewport end 364: div.wrap code | no | the code block is below the fold of the 390x844 viewport shot |
 | blog | contrast dark only | dark | yes: contrast 1.7, text #3a3f47: div.wrap blockquote | yes | quote is dim on the dark background |
-| carousel | tap target | default | yes: small target 10x10 ×5: button.dot, button.dot.active | no | dots look like any carousel's dots |
+| carousel | tap target | default | yes: small target 10x10 ×5: button.dot 1 of 4, button.dot.active, button.dot 2 of 4 +2 | no | dots look like any carousel's dots |
 | carousel | off-center | default | yes: text off center 8 up ×2: div.arrow.prev, div.arrow.next | no | glyph 4px high, not noticeable |
 | carousel | image distorted | default | yes: image aspect 0.83 of natural: div.track img | yes | seen only because the test image has a circle that became an ellipse |
-| chat | covered by fixed | default | yes: covered 100% by form.composer: div#messages.messages div.bubble | no | looks like a scrolled list, nothing shows a message is hidden |
-| chat | tap target | default | yes: small target 20x20 ×3: button.tool | no | unbordered icons, size not judgeable |
+| chat | covered by fixed | default | yes: covered 100% by form.composer: div#messages.messages div.bubble 7 of 7 | no | looks like a scrolled list, nothing shows a message is hidden |
+| chat | tap target | default | yes: small target 20x20 ×3: button.tool 1 of 3, button.tool 2 of 3, button.tool 3 of 3 | no | unbordered icons, size not judgeable |
 | chat | text overflow | default | yes: text overflows end 109: div.contact-name | yes | online status overlaps the name |
-| chat | responsive rule breaks at 390 | mobile | yes: covered start 89..220 by aside.threads ×6: div.bubble.mine, form.composer input | yes | thread list covers the conversation |
+| chat | responsive rule breaks at 390 | mobile | yes: covered 100% by aside.threads ×3: button.tool 1 of 3, button.tool 2 of 3, button.tool 3 of 3 | yes | thread list covers the conversation |
 | dashboard | uneven list spacing | default | yes: gaps 12 12 4 4 4 4 between li: ul.side-nav | yes | extra space around Overview is visible |
 | dashboard | sibling misalignment | default | yes: div.stat tops 0..6 across siblings: section.stats | yes | Refunds card sits lower |
 | dashboard | off-center | default | yes: off center 48 down: div.empty | no | 24px low in a 260px box, looks centered at a glance |
 | dashboard | responsive rule breaks at 390 | mobile | no | yes | page obviously wider than the phone, Export button gone |
 | grid-areas | text overflow | default | yes: text overflows end 81: div.shell h3 | yes | the word runs out of the box |
-| grid-areas | clipped by overflow hidden | default | yes: clipped bottom 10 by footer.site-footer: footer.site-footer p | no | the footer is below the fold at 1280x800 |
+| grid-areas | clipped by overflow hidden | default | yes: clipped bottom 10 by footer.site-footer: footer.site-footer p 2 of 2 | no | the footer is below the fold at 1280x800 |
 | grid-areas | responsive rule breaks at 390 | mobile | yes: past viewport end 157: div.shell aside | yes | main squeezed to a third of the phone width |
 | hero | off-center | default | no | yes | label sits at the top of the yellow button |
 | hero | covered by fixed | default | yes: covered bottom 29 by div.cookie ×3: section.features p | yes | banner cuts the card text, though a cookie overlay is easy to accept as normal |
-| hero | responsive rule breaks at 390 | mobile | yes: past viewport end 17: div.logo-item | yes | logo row cut at both edges |
+| hero | responsive rule breaks at 390 | mobile | yes: past viewport end 17: div.logo-item 5 of 5 | yes | logo row cut at both edges |
 | modal | modal content cut | open | yes: clipped bottom 41..42 by div.modal ×2: ul.invite-list input, ul.invite-list select | yes | last row cut, no footer or Send button |
 | modal | off-center | open | no | no | the glyph is 4px low, not noticeable |
 | modal | image distorted | open | yes: image aspect 0.63 of natural: img.team-logo | yes | seen only because the test image has a circle that became an ellipse |
 | nav-dropdown | uneven list spacing | default | yes: gaps 28 28 44 28 28 between li: ul.nav-links | yes | wider gap before Changelog |
-| nav-dropdown | clipped by overflow hidden | menu | yes: clipped out by header.site-header ×4: ul.menu li | no | no menu visible, only a sliver of shadow; I would have guessed the hover script failed |
-| nav-dropdown | overflow at 390 | mobile | yes: clipped out by header.site-header ×3: li.new, ul.nav-links li | yes | links stop at Pricing and there is no menu button |
+| nav-dropdown | clipped by overflow hidden | menu | yes: clipped out by header.site-header ×4: ul.menu li 1 of 4, ul.menu li 2 of 4, ul.menu li 3 of 4 +1 | no | no menu visible, only a sliver of shadow; I would have guessed the hover script failed |
+| nav-dropdown | overflow at 390 | mobile | yes: clipped out by header.site-header ×3: li.new, ul.nav-links li 3 of 4, ul.nav-links li 4 of 4 | yes | links stop at Pricing and there is no menu button |
 | pricing | sibling misalignment | default | no | yes | Team button clearly lower |
 | pricing | contrast | default | yes: contrast 1.9, text #b4b8c0: p.billing-note | yes | note is visibly faint |
-| pricing | overflow at 390 | mobile | yes: past viewport end 5 ×3: article.plan, article.plan.featured | yes | seen only as a card with no side margin and cut borders, the 5px overflow is not measurable by eye |
+| pricing | overflow at 390 | mobile | yes: past viewport end 5 ×3: article.plan 1 of 2, article.plan.featured, article.plan 2 of 2 | yes | seen only as a card with no side margin and cut borders, the 5px overflow is not measurable by eye |
 | products | sibling misalignment | default | yes: button.add-to-cart tops 232..262 across siblings: div.grid | yes | buttons at three heights |
 | products | image distorted | default | yes: image aspect 1.14 of natural ×4: div.grid img | yes | seen only because the test image has a circle that became an ellipse |
 | products | clipped by overflow hidden | default | yes: text cut 18: h2.name | no | the cut title reads as complete, no ellipsis to hint at it |
 | products | tap target | default | no | no | look like normal small overlay icons |
-| rtl | rtl wrong side | default | yes: covered 100% by nav.sidebar ×5: header.topbar h1, div.orders span | yes | layout visibly broken, but the screenshot does not say which side or why |
+| rtl | rtl wrong side | default | yes: covered 100% by nav.sidebar ×5: header.topbar h1, div.orders span 1 of 2 | yes | layout visibly broken, but the screenshot does not say which side or why |
 | rtl | rtl wrong side | default | yes: covered start 219 by aside#filters.drawer ×2: div.label, div.value | yes | visible, but it could pass for a filter panel that is open on purpose |
-| rtl | tap target | default | yes: small target 18x18 ×3: button.icon | no | unbordered icons, size not judgeable |
+| rtl | tap target | default | yes: small target 18x18 ×3: button.icon 1 of 3, button.icon 2 of 3, button.icon 3 of 3 | no | unbordered icons, size not judgeable |
 | settings | contrast | default | yes: contrast 2.2 ×2, text #a8adb5: div.hint | yes | help text visibly faint |
-| settings | tap target | default | yes: small target 18x18 ×4: button.fmt | yes | bordered buttons look cramped and tiny |
+| settings | tap target | default | yes: small target 18x18 ×4: button.fmt 1 of 4, button.fmt 2 of 4, button.fmt 3 of 4 +1 | yes | bordered buttons look cramped and tiny |
 | settings | modal content cut | dialog | yes: clipped out by dialog#confirm-delete.confirm: div.actions | yes | input cut at the bottom edge, no buttons |
 | sticky | uneven list spacing | default | yes: gaps 6 18 6 between li: aside.toc ul | yes | bigger gap after Meet the team |
 | sticky | image broken | default | yes: image not loaded: img.team-photo | yes | broken icon and alt text |
 | sticky | covered by sticky | pricing | yes: covered top 47 by header.site-header: section#pricing h2 | yes | heading faint behind the translucent header |
-| table | contrast | default | yes: contrast 2.5 ×5, text #9a9a9a: div.page th | no | reads as a normal muted header style |
+| table | contrast | default | yes: contrast 2.5 ×5, text #9a9a9a: div.page th 1 of 6, div.page th 2 of 6, div.page th 3 of 6 +2 | no | reads as a normal muted header style |
 | table | text overflow | default | yes: text overflows end 22 ×2: span.pill.waiting | yes | text runs out of the pill |
-| table | tap target | default | yes: small target 16x16 ×15: div.page button.row-action | no | small icons look deliberate |
+| table | tap target | default | yes: small target 16x16 ×15: div.page button.row-action 1 of 3, div.page button.row-action 2 of 3, div.page button.row-action 3 of 3 | no | small icons look deliberate |
 | table | overflow at 390 | mobile | yes: past viewport end 159..346 ×3: div.page table, span.pill.waiting | yes | table cut at the right edge |
 
 ## Cost of a screenshot versus the text
 
 | viewport | screenshot tokens | median text tokens |
 | --- | --- | --- |
-| 1280x800 | ~1100 (estimate) | 544 |
-| 390x844 | ~550 (estimate) | 505 |
+| 1280x800 | ~1100 (estimate) | 584 |
+| 390x844 | ~550 (estimate) | 526 |
 
 ## Misses
 
@@ -170,36 +170,34 @@ Times, lines and tokens are per run, in the order of the runs column. Tokens are
 Every summary line that matches no planted bug, once per page, with the runs that printed it and the judgment from bench/noise-judgments.json.
 
 - blog [default, dark] `overflows parent end 18: div.wrap code` : true and useful. The first SQL line is 18px wider than the pre at 1280 too, a real overflow I did not plant.
-- carousel [default] `clipped out by div.viewport ×4: div.slide` : true. The four hidden slides, grouped on one line like the clean carousel. Context present: div.viewport [clips 1 of 1 children], div.track [translated x -800], section [role carousel].
-- carousel [default] `overflows parent end 800: div.slide` : true but useless. The visible slide sticks out of the translated track, which is how every flex carousel is built. Dismissible from [translated x -800] on the track.
+- carousel [default] `clipped out by div.viewport ×4: div.slide 1 of 5, div.slide 3 of 5, div.slide 4 of 5 +1` : not judged yet
+- carousel [default] `overflows parent end 800: div.slide 2 of 5` : not judged yet
 - chat [default] `text truncated ellipsis 49..173 ×3: span.preview` : true but useless. Thread previews are ellipsized on purpose.
-- chat [default, mobile] `contrast 4.4 ×7, text #ffffff: div.bubble.mine` : true and useful, marginal. White on #2b6cff is 4.4, just under AA 4.5. Not planted.
-- chat [mobile] `covered 49% by strong: div#messages.messages div.bubble` : true and useful. The planted 390 drawer bug again, blamed on a child of the drawer instead of aside.threads.
-- chat [mobile] `covered bottom 16 by span.preview: div#messages.messages div.bubble` : true and useful. Same drawer bug, blamed on a child of the drawer.
+- chat [default, mobile] `contrast 4.4 ×7, text #ffffff: div.bubble.mine 1 of 7, div.bubble.mine 2 of 7, div.bubble.mine 3 of 7 +4` : not judged yet
 - chat [mobile] `text truncated ellipsis 17..141 ×3: span.preview` : true but useless. Same intended ellipsis at 390.
-- clean-carousel [default] `clipped right 212 by div.ticker: div.ticker-track span` : true. Marquee text entering the clip. Context present: [role marquee], [clips 1 of 1 children], [animating] on the track.
-- clean-carousel [default] `clipped out by div.ticker ×2: div.ticker-track span` : true. Marquee items waiting off to the right, grouped on one line. Same context tags present.
-- clean-carousel [default, mobile] `clipped out by div.carousel-window ×3: article.card` : true. The three hidden slides, grouped on one line. Context present: [role carousel], [clips 1 of 1 children], [translated x -912].
-- clean-carousel [default] `overflows parent end 912: article.card` : true but useless. The visible slide sticks out of the translated track. Dismissible from [translated x -912].
-- clean-carousel [mobile] `clipped right 83 by div.ticker: div.ticker-track span` : true. Marquee at 390, same context tags.
-- clean-carousel [mobile] `clipped out by div.ticker ×6: div.ticker-track span` : true. Marquee at 390, grouped, same context tags.
-- clean-carousel [mobile] `overflows parent end 342: article.card` : true but useless. Visible slide at 390, same as at 1280.
+- clean-carousel [default] `clipped end 212 by div.ticker (mid animation): div.ticker-track span 6 of 8` : not judged yet
+- clean-carousel [default] `clipped out by div.ticker (mid animation) ×2: div.ticker-track span 7 of 8, div.ticker-track span 8 of 8` : not judged yet
+- clean-carousel [default, mobile] `clipped out by div.carousel-window ×3: article.card 1 of 4, article.card 3 of 4, article.card 4 of 4` : not judged yet
+- clean-carousel [default] `overflows parent end 912: article.card 2 of 4` : not judged yet
+- clean-carousel [mobile] `clipped end 83 by div.ticker (mid animation): div.ticker-track span 2 of 8` : not judged yet
+- clean-carousel [mobile] `clipped out by div.ticker (mid animation) ×6: div.ticker-track span 3 of 8, div.ticker-track span 4 of 8, div.ticker-track span 5 of 8 +3` : not judged yet
+- clean-carousel [mobile] `overflows parent end 342: article.card 2 of 4` : not judged yet
 - clean-hero [default] `overflows parent start and end 120: section.bleed` : true but useless, and easy to misread. The full-bleed hero is intended. No [bleed] tag was printed, so only the code tells an agent it is deliberate.
-- clean-hero [default, mobile] `overlaps img 12x40 ×4: div.avatars img` : true but useless. The avatar stack overlaps on purpose with negative margins. Nothing in the line says so.
-- clean-menu [default] `19..28 wider than a ×2: nav.desktop-nav a` : true but useless. Text links are as wide as their words. A width outlier rule on inline text links is meaningless.
+- clean-hero [default, mobile] `overlaps img 12x40 ×4: div.avatars img 2 of 5, div.avatars img 3 of 5, div.avatars img 4 of 5 +1` : not judged yet
+- clean-menu [default] `19..28 wider than a ×2: nav.desktop-nav a 1 of 4, nav.desktop-nav a 2 of 4` : not judged yet
 - dashboard [mobile] `past viewport end 161: div.layout main` : true and useful. This is the planted 390 stats-grid bug. main is the deepest box whose own box overflows its parent: the 1fr grid track grew to the min-content of the stats grid, and section.stats (519 wide) still fits inside main (551). The tree shows the stats grid and its nowrap values. Scored as a miss because the expectation names the stats grid.
 - hero [default] `overflows parent start and end 80: section.hero` : true but useless. The intended full-bleed hero, same as clean-hero.
-- hero [mobile] `overflows parent start 41: div.logo-item` : true and useful. The planted 390 logo-row bug, second line for it.
-- modal [open] `covered 100% by div#overlay.overlay.open (translucent) ×6: header.topbar strong, button#invite.btn.primary, main.content h1 +2` : true but useless. The page behind a div modal is under its backdrop. The tool treats only native modal dialogs as modal, so it does not fold the background away.
-- modal [open] `covered 100% by div.modal: div.board` : true but useless. Same, a board card behind the modal.
+- hero [mobile] `overflows parent start 41: div.logo-item 1 of 5` : not judged yet
+- modal [open] `covered 100% by div#overlay.overlay.open (translucent) ×6: header.topbar strong, button#invite.btn.primary, main.content h1 +3` : not judged yet
+- modal [open] `covered 100% by div.modal: div.board 2 of 3` : not judged yet
 - nav-dropdown [default, menu] `clipped top 1 by header.site-header ×5: li.has-menu a, ul.nav-links a, li.new a` : true but useless. Link padding boxes are 66px in a 64px header, 1px of padding is cut, text is intact.
 - nav-dropdown [default, menu] `clipped bottom 1 by header.site-header ×5: li.has-menu a, ul.nav-links a, li.new a` : true but useless. Same 1px of padding.
-- nav-dropdown [default, menu] `24 shorter than li: ul.nav-links li` : not judged yet
+- nav-dropdown [default, menu] `24 shorter than li: ul.nav-links li 4 of 4` : not judged yet
 - nav-dropdown [mobile] `clipped top 1 by header.site-header ×3: li.has-menu a, ul.nav-links a` : true but useless. Same 1px at 390.
 - nav-dropdown [mobile] `clipped bottom 1 by header.site-header ×3: li.has-menu a, ul.nav-links a` : true but useless. Same 1px at 390.
 - pricing [default] `div.price tops 100..122 across siblings: section.plans` : true and useful. This is the planted Team-card misalignment. The longer blurb pushes the price down first, and the button moves with it. The expectation names a.cta, the last part that moves, so it scores as a miss.
-- pricing [mobile] `overflows parent start 5 ×3: article.plan, article.plan.featured` : true and useful. The planted 390 plan-card overflow, the left side of it.
-- products [default] `15..30 taller than div.product ×2: div.product` : not judged yet
+- pricing [mobile] `overflows parent start 5 ×3: article.plan 1 of 2, article.plan.featured, article.plan 2 of 2` : not judged yet
+- products [default] `15..30 taller than div.product ×2: div.product 1 of 4, div.product 3 of 4` : not judged yet
 
 <!-- generated by bench/run.mjs: end -->
 

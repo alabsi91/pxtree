@@ -7,9 +7,11 @@ import {
   type WalkedNode,
   closedShadowRoots,
   getAllShadowRoots,
+  getDeepMatches,
   getSingleLineWidths,
   getTopLayerElements,
   hasForcedLineBreak,
+  modalOpenOrderByElement,
   walkPage,
 } from './walk.ts';
 
@@ -31,6 +33,23 @@ function installAttachShadowHook(): void {
     }
 
     return shadowRoot;
+  };
+}
+
+function installModalOpenHooks(): void {
+  const originalShowModal = HTMLDialogElement.prototype.showModal;
+  const originalRequestFullscreen = Element.prototype.requestFullscreen;
+  let modalOpenCount = 0;
+
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement): void {
+    originalShowModal.call(this);
+    modalOpenOrderByElement.set(this, ++modalOpenCount);
+  };
+
+  Element.prototype.requestFullscreen = function requestFullscreen(this: Element, options?: FullscreenOptions): Promise<void> {
+    modalOpenOrderByElement.set(this, ++modalOpenCount);
+
+    return originalRequestFullscreen.call(this, options);
   };
 }
 
@@ -108,7 +127,7 @@ const appleSystemFamilyPattern = /^(-apple-system|BlinkMacSystemFont)$/i;
 
 function getFontSampleElements(options: { maxStackCount: number }): Element[] {
   const elementByStack = new Map<string, Element>();
-  const textWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const textWalker = document.createTreeWalker(document.body ?? document.documentElement, NodeFilter.SHOW_TEXT);
 
   while (textWalker.nextNode() && elementByStack.size < options.maxStackCount) {
     const textNode = textWalker.currentNode as Text;
@@ -171,7 +190,7 @@ function measurePage(options: MeasurePageOptions): PageMeasurement {
     isScrollLocked: context.isScrollLocked,
     modalIndex: walk.modalIndex,
     failedFontFamilies: getFailedFontFamilies(),
-    isNodeCapReached: walk.isNodeCapReached,
+    cappedElementCount: walk.cappedElementCount,
     nodes: walk.walkedNodes.map((walkedNode) => walkedNode.record),
     topLayerIndexes: walk.topLayerIndexes,
     element: walk.element,
@@ -219,7 +238,23 @@ function getPageStateText(): string {
   ]);
 }
 
+function scrollToElement(selector: string): boolean {
+  const [firstMatch] = getDeepMatches(selector, getAllShadowRoots());
+  firstMatch?.scrollIntoView({ block: 'start', behavior: 'instant' });
+
+  return firstMatch !== undefined;
+}
+
 if (!globalThis.__pxtree) {
   installAttachShadowHook();
-  globalThis.__pxtree = { measurePage, settlePage, revealByScrolling, getFontSampleElements, getFontRequests, getPageStateText };
+  installModalOpenHooks();
+  globalThis.__pxtree = {
+    measurePage,
+    settlePage,
+    revealByScrolling,
+    getFontSampleElements,
+    getFontRequests,
+    getPageStateText,
+    scrollToElement,
+  };
 }

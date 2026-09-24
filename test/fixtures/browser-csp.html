@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="style-src 'self'" />
+    <title>style-src csp</title>
+  </head>
+  <body>
+    <header class="sticky-bar">sticky bar</header>
+    <p class="narrow">one two three four five six seven eight nine ten eleven twelve thirteen</p>
+    <div class="spacer"></div>
+    <script>
+      Object.assign(document.body.style, { margin: '0', fontFamily: 'sans-serif', fontSize: '16px' });
+      Object.assign(document.querySelector('.sticky-bar').style, { position: 'sticky', top: '0', height: '40px', background: '#fff' });
+      document.querySelector('.narrow').style.width = '150px';
+      document.querySelector('.spacer').style.height = '3000px';
+    </script>
+  </body>
+</html>

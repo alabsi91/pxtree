@@ -1,10 +1,10 @@
-import type { ElementMatch, MeasuredNode, ScrollAxis, TextInfo, Visibility } from '../types.ts';
+import type { ElementMatch, MeasuredNode, NodeIdentity, ScrollAxis, TextInfo, Visibility } from '../types.ts';
 import {
   type Box,
   type ClipEntry,
   type ClipKind,
   type ColorBytes,
-  addStyleOverride,
+  addInlineStyleOverride,
   createBox,
   createChildClipEntry,
   createRect,
@@ -15,6 +15,7 @@ import {
   getFontMetrics,
   getInkDetails,
   getInsetBox,
+  getLayoutSize,
   getOverflowKind,
   getOwnTransform,
   getSides,
@@ -23,12 +24,15 @@ import {
   isControlElement,
   isFullInsetClipPath,
   isZeroClipRect,
-  restoreStyleAttributes,
+  restoreInlineStyles,
   roundToHundredth,
 } from './geometry.ts';
 
 /** Closed shadow roots that attachShadow created. The hook in index.ts fills it. */
 export const closedShadowRoots = new WeakMap<Element, ShadowRoot>();
+
+/** When each element last called showModal or requestFullscreen, as a count that grows. The hooks in index.ts fill it. */
+export const modalOpenOrderByElement = new WeakMap<Element, number>();
 
 const leafTags = new Set([
   'svg',
@@ -90,7 +94,7 @@ export interface WalkResult {
   allShadowRoots: ShadowRoot[];
   topLayerIndexes: number[];
   modalIndex: number | null;
-  isNodeCapReached: boolean;
+  cappedElementCount: number | null;
   element: ElementMatch | null;
 }
 
@@ -309,7 +313,7 @@ function getVisibility(
   style: CSSStyleDeclaration,
   box: Box,
   clipEntries: ClipEntry[],
-  firstChildElement: Element | null,
+  flatEntries: FlatEntry[],
   context: PageContext,
 ): { visibility: Visibility; clippedOutByIndex: number | null } {
   if (parseFloat(style.opacity) === 0) {
@@ -317,10 +321,7 @@ function getVisibility(
   }
 
   const isContentHidden = style.contentVisibility === 'hidden';
-  const isContentAutoSkipped =
-    style.contentVisibility === 'auto' &&
-    firstChildElement !== null &&
-    !firstChildElement.checkVisibility({ contentVisibilityAuto: true });
+  const isContentAutoSkipped = style.contentVisibility === 'auto' && isContentAutoSkippedAt(flatEntries);
   if (isContentHidden || isContentAutoSkipped) {
     return { visibility: 'content-skipped', clippedOutByIndex: null };
   }
@@ -356,6 +357,17 @@ function getVisibility(
   }
 
   return { visibility: 'shown', clippedOutByIndex: null };
+}
+
+/** Asks the first child that has a box. A child without one, like a script, cannot tell whether the content is skipped. */
+function isContentAutoSkippedAt(flatEntries: FlatEntry[]): boolean {
+  for (const entry of flatEntries) {
+    if (entry.kind === 'element' && entry.element.checkVisibility()) {
+      return !entry.element.checkVisibility({ contentVisibilityAuto: true });
+    }
+  }
+
+  return false;
 }
 
 function isScreenReaderOnly(element: Element, style: CSSStyleDeclaration, box: Box): boolean {
@@ -402,7 +414,7 @@ function getClippingEntry(box: Box, entries: ClipEntry[]): ClipEntry {
 
 // ---------- names ----------
 
-const allowedNamePattern = /^[A-Za-z0-9_-]+$/;
+const allowedNamePattern = /^[\p{L}\p{N}_-]+$/u;
 const generatedSuffixPattern = /^(.+?)(?:__|_|-)([A-Za-z0-9]{5,10})$/;
 const hashClassPattern = /^[A-Za-z]{1,8}-([A-Za-z0-9_]{5,})$/;
 
@@ -450,10 +462,23 @@ export function createClassFrequency(classNameLists: string[][]): Map<string, nu
   return classFrequency;
 }
 
+const maximumIdentityClassCount = 8;
+
+function getNameId(element: Element): string | null {
+  const id = element.id;
+  const isNameableId = id !== '' && allowedNamePattern.test(id) && !/\d{3,}/.test(id);
+
+  return isNameableId ? id : null;
+}
+
+export function createNodeIdentity(element: Element, classNames: string[]): NodeIdentity {
+  return { tag: element.localName, id: getNameId(element), classNames: classNames.slice(0, maximumIdentityClassCount) };
+}
+
 export function createNodeName(element: Element, classNames: string[], classFrequency: Map<string, number>): string {
   let name = element.localName;
-  const id = element.id;
-  if (id && allowedNamePattern.test(id) && !/\d{3,}/.test(id)) {
+  const id = getNameId(element);
+  if (id !== null) {
     name += '#' + id;
   }
 
@@ -510,7 +535,9 @@ export function walkPage(elementSelector: string | null, maxNodes: number): Walk
     range: document.createRange(),
   };
 
-  walkElement(document.body, getComputedStyle(document.body), state, {
+  const rootElement = document.body ?? document.documentElement;
+
+  walkElement(rootElement, getComputedStyle(rootElement), state, {
     parent: null,
     depth: 0,
     isSlotted: false,
@@ -553,6 +580,9 @@ export function walkPage(elementSelector: string | null, maxNodes: number): Walk
 
   fillCrossNodeFields(walkedNodes, nodeIndexByElement);
 
+  const elementMatch =
+    elementSelector === null ? null : getElementMatch(elementSelector, allShadowRoots, nodeIndexByElement, state.isNodeCapReached);
+
   return {
     context,
     walkedNodes,
@@ -561,9 +591,32 @@ export function walkPage(elementSelector: string | null, maxNodes: number): Walk
     allShadowRoots,
     topLayerIndexes,
     modalIndex,
-    isNodeCapReached: state.isNodeCapReached,
-    element: elementSelector === null ? null : getElementMatch(elementSelector, allShadowRoots, nodeIndexByElement),
+    cappedElementCount: state.isNodeCapReached ? getElementCount(allShadowRoots) : null,
+    element: elementMatch,
   };
+}
+
+function getElementCount(allShadowRoots: ShadowRoot[]): number {
+  let elementCount = document.getElementsByTagName('*').length;
+
+  for (const shadowRoot of allShadowRoots) {
+    elementCount += shadowRoot.querySelectorAll('*').length;
+  }
+
+  return elementCount;
+}
+
+/** Elements that match a selector in the document or in any shadow root. Throws for a selector that is not valid CSS. */
+export function getDeepMatches(selector: string, allShadowRoots: ShadowRoot[]): Set<Element> {
+  const matchedElements = new Set<Element>(document.querySelectorAll(selector));
+
+  for (const shadowRoot of allShadowRoots) {
+    for (const matchedElement of shadowRoot.querySelectorAll(selector)) {
+      matchedElements.add(matchedElement);
+    }
+  }
+
+  return matchedElements;
 }
 
 export function getTopLayerElements(allShadowRoots: ShadowRoot[]): Element[] {
@@ -578,13 +631,19 @@ export function getTopLayerElements(allShadowRoots: ShadowRoot[]): Element[] {
   );
 }
 
+/** The modal or fullscreen root that opened last. Of roots whose opening was not seen, the last in document order wins. */
 function getModalIndex(walkedNodes: WalkedNode[], topLayerIndexes: number[]): number | null {
   let modalIndex: number | null = null;
+  let modalOpenOrder = -1;
 
   for (const rootIndex of topLayerIndexes) {
-    const topLayer = walkedNodes[rootIndex].record.topLayer;
-    if (topLayer === 'modal' || topLayer === 'fullscreen') {
+    const walkedNode = walkedNodes[rootIndex];
+    const topLayer = walkedNode.record.topLayer;
+    const openOrder = modalOpenOrderByElement.get(walkedNode.element) ?? 0;
+
+    if ((topLayer === 'modal' || topLayer === 'fullscreen') && openOrder >= modalOpenOrder) {
       modalIndex = rootIndex;
+      modalOpenOrder = openOrder;
     }
   }
 
@@ -618,7 +677,8 @@ function fillCrossNodeFields(walkedNodes: WalkedNode[], nodeIndexByElement: Map<
     record.name = createNodeName(walkedNode.element, walkedNode.classNames, classFrequency);
 
     if (record.parentIndex !== -1) {
-      record.isInlineInText = record.isInline && walkedNodes[record.parentIndex].hasOwnText;
+      const parent = walkedNodes[record.parentIndex];
+      record.isInlineInText = record.isInline && (parent.hasOwnText || parent.record.isInlineInText);
     }
 
     if (walkedNode.element instanceof HTMLLabelElement && walkedNode.element.control) {
@@ -635,25 +695,28 @@ function getElementMatch(
   selector: string,
   allShadowRoots: ShadowRoot[],
   nodeIndexByElement: Map<Element, number>,
+  isNodeCapReached: boolean,
 ): ElementMatch {
-  const matchedElements = new Set<Element>(document.querySelectorAll(selector));
-
-  for (const shadowRoot of allShadowRoots) {
-    for (const matchedElement of shadowRoot.querySelectorAll(selector)) {
-      matchedElements.add(matchedElement);
-    }
-  }
-
+  const matchedElements = getDeepMatches(selector, allShadowRoots);
   const matchedIndexes: number[] = [];
+  let unwalkedCount = 0;
 
   for (const matchedElement of matchedElements) {
     const nodeIndex = nodeIndexByElement.get(matchedElement);
+
     if (nodeIndex !== undefined) {
       matchedIndexes.push(nodeIndex);
+    } else if (isNodeCapReached && matchedElement.checkVisibility()) {
+      unwalkedCount++;
     }
   }
 
-  return { selector, matchedIndexes: matchedIndexes.sort((first, second) => first - second), matchedCount: matchedElements.size };
+  return {
+    selector,
+    matchedIndexes: matchedIndexes.sort((first, second) => first - second),
+    matchedCount: matchedElements.size,
+    unwalkedCount,
+  };
 }
 
 function getKeptClipEntries(style: CSSStyleDeclaration, state: WalkState, inheritance: Inheritance): ClipEntry[] {
@@ -699,24 +762,24 @@ function walkElement(element: Element, style: CSSStyleDeclaration, state: WalkSt
     collectFlatEntries(element, false, flatEntries);
   }
 
-  const firstChildEntry = flatEntries.find((entry) => entry.kind === 'element');
-  const firstChildElement = firstChildEntry?.kind === 'element' ? firstChildEntry.element : null;
-  const { visibility, clippedOutByIndex } = getVisibility(element, style, box, clipEntries, firstChildElement, context);
-
-  const ownOpacity = parseFloat(style.opacity);
-  const cumulativeOpacity = (parent && !inheritance.isTopLayerRoot ? parent.cumulativeOpacity : 1) * ownOpacity;
-  const layoutWidth = element instanceof HTMLElement ? element.offsetWidth : roundToHundredth(box.right - box.left);
-  const layoutHeight = element instanceof HTMLElement ? element.offsetHeight : roundToHundredth(box.bottom - box.top);
-  const ownTransform = getOwnTransform(style, layoutWidth, layoutHeight);
-  const isPureTranslate =
-    ownTransform.rotateDegrees === 0 &&
-    ownTransform.scale === 1 &&
-    (Math.abs(ownTransform.translateX) >= 0.5 || Math.abs(ownTransform.translateY) >= 0.5);
-  const isParentTransformed = parent !== null && (parent.record.rotateDegrees !== 0 || parent.record.scale !== 1);
-  const isInsideTransform = parent !== null && (parent.record.isInsideTransform || isParentTransformed);
+  const { visibility, clippedOutByIndex } = getVisibility(element, style, box, clipEntries, flatEntries, context);
 
   const border = getSides(style, 'border');
   const padding = getSides(style, 'padding');
+  const ownOpacity = parseFloat(style.opacity);
+  const cumulativeOpacity = (parent && !inheritance.isTopLayerRoot ? parent.cumulativeOpacity : 1) * ownOpacity;
+  const layoutSize =
+    element instanceof HTMLElement
+      ? getLayoutSize(element, style, border, padding)
+      : { width: roundToHundredth(box.right - box.left), height: roundToHundredth(box.bottom - box.top) };
+  const ownTransform = getOwnTransform(style, layoutSize.width, layoutSize.height);
+  const isPureTranslate =
+    ownTransform.rotateDegrees === 0 &&
+    !isScaled(ownTransform.scale) &&
+    ownTransform.flippedAxis === null &&
+    (Math.abs(ownTransform.translateX) >= 0.5 || Math.abs(ownTransform.translateY) >= 0.5);
+  const isParentTransformed = parent !== null && (parent.record.rotateDegrees !== 0 || isScaled(parent.record.scale));
+  const isInsideTransform = parent !== null && (parent.record.isInsideTransform || isParentTransformed);
   const isFixedToViewport =
     position === 'fixed' && (parent === null || parent.fixedContainerIndexForChildren === -1);
 
@@ -753,6 +816,7 @@ function walkElement(element: Element, style: CSSStyleDeclaration, state: WalkSt
   const shadowRoot = getShadowRoot(element);
   const isControl = isControlElement(element, tag);
   const display = style.display;
+  const classNames = getNormalizedClassNames(element);
 
   const record: MeasuredNode = {
     index,
@@ -761,15 +825,17 @@ function walkElement(element: Element, style: CSSStyleDeclaration, state: WalkSt
     subtreeEnd: index,
     tag,
     name: tag,
+    identity: createNodeIdentity(element, classNames),
     text: createTextPreview(ownText),
     visibility,
     clippedOutByIndex,
     skippedChildCount: 0,
     rect: createRect(box),
-    layoutWidth,
-    layoutHeight,
+    layoutWidth: layoutSize.width,
+    layoutHeight: layoutSize.height,
     rotateDegrees: ownTransform.rotateDegrees,
     scale: ownTransform.scale,
+    flippedAxis: ownTransform.flippedAxis,
     translate: isPureTranslate ? { x: ownTransform.translateX, y: ownTransform.translateY } : null,
     isInsideTransform,
     isAnimating: state.animatingElements.has(element),
@@ -835,7 +901,7 @@ function walkElement(element: Element, style: CSSStyleDeclaration, state: WalkSt
     backgroundBytes: inkDetails.backgroundBytes,
     paintsBox: inkDetails.paintsBox,
     cumulativeOpacity,
-    classNames: getNormalizedClassNames(element),
+    classNames,
     hasOwnText,
     absoluteContainerIndexForChildren: isContainingBlockForAbsolute(style)
       ? index
@@ -926,6 +992,10 @@ function walkElement(element: Element, style: CSSStyleDeclaration, state: WalkSt
   record.scroll = getScrollInfo(walkedNode, walkedNodes, isRootOverflowSource);
 
   return index;
+}
+
+function isScaled(scale: MeasuredNode['scale']): boolean {
+  return scale.x !== 1 || scale.y !== 1;
 }
 
 function hasShownDescendant(walkedNodes: WalkedNode[], index: number): boolean {
@@ -1210,7 +1280,7 @@ export function hasForcedLineBreak(element: Element, style: CSSStyleDeclaration)
 
 /** Returns, per element, how wide its own lines are when laid out as one line. Lays out the page once. */
 export function getSingleLineWidths(elements: Element[]): number[] {
-  const savedStyleAttributes = addStyleOverride(elements, 'white-space: nowrap !important; width: max-content !important');
+  const savedInlineStyles = addInlineStyleOverride(elements, { 'white-space': 'nowrap', width: 'max-content' });
   const range = document.createRange();
 
   const singleLineWidths = elements.map((element) => {
@@ -1222,7 +1292,7 @@ export function getSingleLineWidths(elements: Element[]): number[] {
     return lineUnion ? roundToHundredth(lineUnion.right - lineUnion.left) : 0;
   });
 
-  restoreStyleAttributes(elements, savedStyleAttributes);
+  restoreInlineStyles(savedInlineStyles);
 
   return singleLineWidths;
 }
@@ -1258,7 +1328,8 @@ function getTruncation(
   border: MeasuredNode['border'],
   textBoxes: Box[],
 ): TextInfo['truncation'] {
-  if (style.textOverflow === 'ellipsis' && element.scrollWidth > element.clientWidth + 1) {
+  const isEllipsisShown = style.textOverflow === 'ellipsis' && style.overflowX !== 'visible';
+  if (isEllipsisShown && element.scrollWidth > element.clientWidth + 1) {
     return { kind: 'ellipsis', hiddenPx: element.scrollWidth - element.clientWidth, clampLines: 0 };
   }
 
@@ -1272,19 +1343,17 @@ function getTruncation(
     };
   }
 
-  const isOverflowClipped = style.overflowX !== 'visible' || style.overflowY !== 'visible';
-  if (!isOverflowClipped) {
+  const isCutX = getOverflowKind(style.overflowX) === 'clip';
+  const isCutY = getOverflowKind(style.overflowY) === 'clip';
+  if (!isCutX && !isCutY) {
     return null;
   }
 
   const paddingBox = getInsetBox(box, border);
   const textInkBox = getBoxUnion(textBoxes)!;
-  const hiddenPx = Math.max(
-    paddingBox.top - textInkBox.top,
-    textInkBox.right - paddingBox.right,
-    textInkBox.bottom - paddingBox.bottom,
-    paddingBox.left - textInkBox.left,
-  );
+  const hiddenPxX = isCutX ? Math.max(textInkBox.right - paddingBox.right, paddingBox.left - textInkBox.left) : 0;
+  const hiddenPxY = isCutY ? Math.max(paddingBox.top - textInkBox.top, textInkBox.bottom - paddingBox.bottom) : 0;
+  const hiddenPx = Math.max(hiddenPxX, hiddenPxY);
 
   return hiddenPx > 1 ? { kind: 'cut', hiddenPx: roundToHundredth(hiddenPx), clampLines: 0 } : null;
 }
@@ -1300,6 +1369,7 @@ function getImageInfo(element: Element, tag: string, style: CSSStyleDeclaration)
       hasSource: element.hasAttribute('src') || element.hasAttribute('srcset'),
       isVector: /\.svg(?:[?#]|$)/i.test(source) || source.startsWith('data:image/svg'),
       objectFit: style.objectFit,
+      sourcePixelDensity: getSourcePixelDensity(element),
     };
   }
 
@@ -1311,8 +1381,35 @@ function getImageInfo(element: Element, tag: string, style: CSSStyleDeclaration)
       hasSource: element.hasAttribute('src') || element.querySelector('source') !== null,
       isVector: false,
       objectFit: style.objectFit,
+      sourcePixelDensity: 1,
     };
   }
 
   return null;
+}
+
+const maxSourcePixelWidthProbeCount = 200;
+
+const sourcePixelWidthBySource = new Map<string, number | null>();
+
+/**
+ * A srcset candidate's natural width is already divided by its density. A plain image of the same source reads the
+ * pixel width. The browser decodes an image it already holds without waiting. null when it could not.
+ */
+function getSourcePixelDensity(image: HTMLImageElement): number | null {
+  const hasSourceSet = image.hasAttribute('srcset') || image.parentElement instanceof HTMLPictureElement;
+  if (!hasSourceSet || image.naturalWidth === 0) {
+    return 1;
+  }
+
+  const source = image.currentSrc;
+  if (!sourcePixelWidthBySource.has(source) && sourcePixelWidthBySource.size < maxSourcePixelWidthProbeCount) {
+    const probeImage = new Image();
+    probeImage.src = source;
+    sourcePixelWidthBySource.set(source, probeImage.complete && probeImage.naturalWidth > 0 ? probeImage.naturalWidth : null);
+  }
+
+  const sourcePixelWidth = sourcePixelWidthBySource.get(source) ?? null;
+
+  return sourcePixelWidth === null ? null : roundToHundredth(sourcePixelWidth / image.naturalWidth);
 }

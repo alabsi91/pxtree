@@ -1,5 +1,5 @@
 import { existsSync, realpathSync } from 'node:fs';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -26,30 +26,62 @@ const maxViewportCount = 10;
 const maxTimeoutMs = 120000;
 
 const maxScrollStopCount = 10;
+const exitCodeBySignal = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
 
 const viewportSideSchema = z.number().int().min(1).max(maxViewportSide);
 const scrollStopSchema = z.union([z.number().nonnegative(), z.string().min(1)]);
+
+/** Agents often send "true", "false" or "5000" as strings. These become the boolean or number they mean. */
+function getCoercedValue(value: unknown): unknown {
+  if (value === 'true' || value === 'false') {
+    return value === 'true';
+  }
+
+  return typeof value === 'string' && /^\s*\d+\s*$/.test(value) ? Number(value) : value;
+}
+
+const booleanSchema = z.preprocess(getCoercedValue, z.boolean());
+const positiveNumberSchema = z.preprocess(getCoercedValue, z.number().positive());
 
 const measureInputSchema = {
   target: z.string().describe('A string: URL, host like localhost:5173, or HTML file path under the working directory'),
   viewports: z
     .array(z.object({ width: viewportSideSchema, height: viewportSideSchema }))
+    .min(1, 'viewports needs at least one viewport')
     .max(maxViewportCount)
     .optional()
     .describe('An array of { width, height } with integer numbers, one run each. Default [{ width: 1280, height: 800 }]'),
-  schemes: z.array(z.enum(['light', 'dark'])).optional().describe('An array of "light" and "dark", the prefers-color-scheme per run. Default ["light"]'),
+  schemes: z
+    .array(z.enum(['light', 'dark']))
+    .min(1, 'schemes needs at least one scheme')
+    .optional()
+    .describe('An array of "light" and "dark", the prefers-color-scheme per run. Default ["light"]'),
   scroll: z
     .union([scrollStopSchema, z.array(scrollStopSchema).min(1).max(maxScrollStopCount)])
     .optional()
     .describe('A stop or an array of stops: a number or digit string is a window y offset, "end" is the bottom, anything else is a CSS selector to scroll to the top. An array measures each stop in turn, one run per stop. Default 0'),
   element: z.string().optional().describe('A CSS selector string: print only matching elements and their ancestor lines'),
-  children: z.boolean().optional().describe('A boolean. With element: include what is inside the matches. Default true'),
-  colors: z.boolean().optional().describe('A boolean: print hex colors in [text] and [renders]'),
-  wait: z.union([z.number().nonnegative(), z.string()]).optional().describe('After the script: a number or digit string of milliseconds to sleep, or a CSS selector string to wait for'),
-  script: z.string().optional().describe('A string: body of async (page) => {} run with the Playwright page before measuring'),
-  screenshot: z.boolean().optional().describe('A boolean: save a PNG per run under the OS temp directory and return its path'),
-  timeout: z.number().positive().max(maxTimeoutMs).optional().describe('A number of milliseconds to reach DOMContentLoaded. Default 30000'),
-  diff: z.boolean().optional().describe('A boolean: compare with the previous run of the same target and settings. Default true'),
+  children: booleanSchema.optional().describe('A boolean. With element: include what is inside the matches. Default true'),
+  colors: booleanSchema.optional().describe('A boolean: print hex colors in [text] and [renders]'),
+  wait: z
+    .union([z.number().nonnegative(), z.string()])
+    .optional()
+    .describe('After the script: a number or digit string of milliseconds to sleep, at most timeout, or a CSS selector string to wait up to timeout for'),
+  script: z
+    .string()
+    .optional()
+    .describe(
+      'A string: the body of async (page) => {}, or a whole function like async (page) => {}, run with the Playwright page before measuring. It is trusted code that runs as Node in the server process with its full rights',
+    ),
+  screenshot: booleanSchema.optional().describe('A boolean: save a PNG per run under the OS temp directory and return its path'),
+  timeout: positiveNumberSchema
+    .pipe(z.number().max(maxTimeoutMs))
+    .optional()
+    .describe('A number of milliseconds to reach DOMContentLoaded. The script, a wait, reveal, settle and measuring each get this long again. Default 30000'),
+  maxChars: positiveNumberSchema
+    .optional()
+    .describe('A number: the longest report in characters. Past it the tree is cut at a line; facts, since last run and summary stay. Default 80000'),
+  diff: booleanSchema.optional().describe('A boolean: compare with the previous run of the same target and settings. Default true'),
   diffKey: z
     .string()
     .optional()
@@ -58,10 +90,24 @@ const measureInputSchema = {
     .enum(['tree', 'findings', 'summary', 'changes', 'none'])
     .optional()
     .describe('One of "tree", "findings", "summary", "changes", "none". tree: everything. findings: only lines with findings and their ancestors. summary: no tree. changes: facts line and since last run. none: facts line only. Default tree'),
-  aria: z.boolean().optional().describe("A boolean: add Playwright's aria snapshot of the page, or of each element match, after the report"),
+  aria: booleanSchema.optional().describe("A boolean: add Playwright's aria snapshot of the page, or of each element match, after the report"),
 };
 
-type MeasureInput = z.infer<z.ZodObject<typeof measureInputSchema>>;
+/** Strict, so a misspelled key like `viewport` fails naming the key instead of being ignored. */
+const measureInputObjectSchema = z.object(measureInputSchema).strict();
+
+type MeasureInput = z.infer<typeof measureInputObjectSchema>;
+
+let screenshotDirectory: string | null = null;
+
+/** One temp directory per server for all screenshots. It is removed when the server stops. */
+async function getScreenshotDirectory(): Promise<string> {
+  screenshotDirectory ??= await mkdtemp(join(tmpdir(), 'pxtree-'));
+
+  return screenshotDirectory;
+}
+
+let screenshotCount = 0;
 
 async function createMeasureOptions(input: MeasureInput): Promise<MeasureOptions> {
   const measureOptions: MeasureOptions = {
@@ -83,8 +129,8 @@ async function createMeasureOptions(input: MeasureInput): Promise<MeasureOptions
   }
 
   if (input.screenshot === true) {
-    const screenshotDirectory = await mkdtemp(join(tmpdir(), 'pxtree-'));
-    measureOptions.screenshotPath = join(screenshotDirectory, 'screenshot.png');
+    screenshotCount++;
+    measureOptions.screenshotPath = join(await getScreenshotDirectory(), `screenshot-${screenshotCount}.png`);
   }
 
   return measureOptions;
@@ -93,7 +139,8 @@ async function createMeasureOptions(input: MeasureInput): Promise<MeasureOptions
 /** A file target must stay inside the working directory, symlinks resolved. Other targets always pass. */
 function isAllowedTarget(target: string): boolean {
   const targetUrl = getTargetUrl(target);
-  if (!targetUrl.startsWith('file:')) {
+  const isFileTarget = URL.canParse(targetUrl) && new URL(targetUrl).protocol === 'file:';
+  if (!isFileTarget) {
     return true;
   }
 
@@ -109,7 +156,7 @@ function isAllowedTarget(target: string): boolean {
 function registerMeasureTool(server: McpServer, session: Session): void {
   let previousMeasureCall: Promise<unknown> = Promise.resolve();
 
-  server.registerTool('measure', { description: measureToolDescription, inputSchema: measureInputSchema }, (input) => {
+  server.registerTool('measure', { description: measureToolDescription, inputSchema: measureInputObjectSchema }, (input) => {
     const measureCall = previousMeasureCall.then(() => measureInSession(session, input));
     previousMeasureCall = measureCall.catch(() => {});
 
@@ -131,7 +178,7 @@ async function measureInSession(session: Session, input: MeasureInput): Promise<
     return { isError: true, content: [{ type: 'text', text: result.error.message }] };
   }
 
-  const reportText = format(result, { shouldShowColors: input.colors, report: input.report });
+  const reportText = format(result, { shouldShowColors: input.colors, report: input.report, maxCharacters: input.maxChars });
   const reportContent = [{ type: 'text' as const, text: reportText }];
   const screenshotPaths = result.runs.flatMap((run) => (run.screenshotPath === null ? [] : [run.screenshotPath]));
   if (screenshotPaths.length > 0) {
@@ -154,10 +201,22 @@ export async function runMcpServer(): Promise<void> {
   registerMeasureTool(server, session);
   registerReadMeFirstTool(server);
 
-  process.stdin.once('end', async () => {
+  async function closeServer(): Promise<void> {
     await server.close();
     await session.close();
-  });
+
+    if (screenshotDirectory !== null) {
+      await rm(screenshotDirectory, { recursive: true, force: true });
+    }
+  }
+
+  process.stdin.once('end', closeServer);
+
+  for (const [signalName, exitCode] of Object.entries(exitCodeBySignal)) {
+    process.once(signalName, () => {
+      void closeServer().finally(() => process.exit(exitCode));
+    });
+  }
 
   await server.connect(new StdioServerTransport());
 }

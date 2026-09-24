@@ -44,8 +44,8 @@ export interface PageMeasurement {
   modalIndex: number | null;
   /** Font families that failed to load. */
   failedFontFamilies: string[];
-  /** True when the walk stopped at the node limit. */
-  isNodeCapReached: boolean;
+  /** How many elements the page has when the walk stopped at the node limit. null when the walk reached every element. */
+  cappedElementCount: number | null;
   /** Nodes in preorder. nodes[0] is body. Top-layer roots follow the body subtree. */
   nodes: MeasuredNode[];
   /** Node indexes of the top-layer roots. */
@@ -63,6 +63,16 @@ export interface ElementMatch {
   matchedIndexes: number[];
   /** Every match, including the ones without a box. */
   matchedCount: number;
+  /** Rendered matches that the walk never reached because it stopped at the node limit. */
+  unwalkedCount: number;
+}
+
+export interface NodeIdentity {
+  tag: string;
+  /** null when the element has no id, or one that a name leaves out. */
+  id: string | null;
+  /** Class names in source order with generated suffixes stripped, at most 8. */
+  classNames: string[];
 }
 
 export interface MeasuredNode {
@@ -76,6 +86,8 @@ export interface MeasuredNode {
   tag: string;
   /** `tag#id.class1.class2`, see docs/DESIGN.md section 4.11. */
   name: string;
+  /** What names the node regardless of the rest of the page. Since-last-run paths are built from it. */
+  identity: NodeIdentity;
   /** Preview of the node's own text. '' when it has none. */
   text: string;
   visibility: Visibility;
@@ -85,14 +97,16 @@ export interface MeasuredNode {
   skippedChildCount: number;
   /** Visual border box in document coordinates. */
   rect: Rect;
-  /** offsetWidth, before transforms. */
+  /** Border-box width before transforms, with fractions. */
   layoutWidth: number;
-  /** offsetHeight, before transforms. */
+  /** Border-box height before transforms, with fractions. */
   layoutHeight: number;
-  /** 0 when not rotated. */
+  /** 0 when not rotated. A flip is not a rotation. */
   rotateDegrees: number;
-  /** 1 when not scaled. */
-  scale: number;
+  /** Scale on each axis, without the sign of a flip. 1 when that axis is not scaled. */
+  scale: { x: number; y: number };
+  /** The axis that the own transform mirrors, like `scaleX(-1)` does for x. null when it does not mirror. */
+  flippedAxis: 'x' | 'y' | null;
   /** Own transform when it only translates. null when it does not move the node or when it also rotates or scales. */
   translate: { x: number; y: number } | null;
   /** True when an ancestor rotates or scales. */
@@ -139,7 +153,7 @@ export interface MeasuredNode {
   /** A link, a form control or an element with an interactive role. */
   isInteractive: boolean;
   isDisabled: boolean;
-  /** An inline element with sibling text in the same parent. */
+  /** An inline element with sibling text in the same parent, or inside such an element. */
   isInlineInText: boolean;
   isInert: boolean;
   /** Computed `pointer-events` is `none`. */
@@ -229,6 +243,7 @@ export interface ImageInfo {
   hasSource: boolean;
   isVector: boolean;
   objectFit: string;
+  sourcePixelDensity: number | null;
 }
 
 export interface Coverage {
@@ -260,6 +275,8 @@ export interface PxtreeInPage {
   getFontRequests(elements: Element[]): FontRequest[];
   /** The DOM with shadow roots, control values, top layer and scroll offsets as one string, to tell whether a script changed the page. */
   getPageStateText(): string;
+  /** Scrolls the first match in the document or in a shadow root to the top. False when nothing matches. */
+  scrollToElement(selector: string): boolean;
 }
 
 // ---------- findings ----------
@@ -291,9 +308,9 @@ export interface Finding {
   kind: FindingKind;
   /** The node that the finding is printed on. */
   nodeIndex: number;
-  /** As printed after '!! ', like 'clipped right 12 by div.panel'. */
+  /** As printed after '!! ', like 'clipped end 12 by div.panel'. */
   text: string;
-  /** The text with its amount replaced by '{n}', like 'clipped right {n} by div.panel'. Equal to text when there is no amount. */
+  /** The text with its amount replaced by '{n}', like 'clipped end {n} by div.panel'. Equal to text when there is no amount. */
   summaryText: string;
   /** The amount, for summary ranges. */
   amount: number | null;
@@ -344,10 +361,11 @@ export interface SnapshotNode {
   y: number;
   tags: string;
   findings: string[];
+  text: string;
 }
 
 export interface Snapshot {
-  version: 1;
+  version: 3;
   /** Keyed by node path, see docs/DESIGN.md section 4.15. */
   nodes: Record<string, SnapshotNode>;
 }
@@ -384,7 +402,10 @@ export interface MeasureOptions {
    * A list measures each stop in turn, one run per stop. Default 0.
    */
   scroll?: ScrollStop | ScrollStop[];
-  /** Inline code (body of async (page) => {}) or a function. Runs in Node with the Playwright page. */
+  /**
+   * Inline code, as the body of async (page) => {} or as a whole function like `async (page) => {}`, or a function.
+   * It is trusted code: it runs in Node with the Playwright page and every right of the process.
+   */
   script?: string | PageScript;
   /** Text that identifies the script for the cache key. The CLI passes the file content. Default is the script when it is a string. */
   scriptCacheText?: string;
@@ -393,7 +414,10 @@ export interface MeasureOptions {
    * earlier run that used the same name, with or without a script. Default: none.
    */
   diffKey?: string;
-  /** Milliseconds to sleep as a number or digit string ('500' or '500ms'), or a CSS selector to wait for, after the script. */
+  /**
+   * Milliseconds to sleep as a number or digit string ('500' or '500ms'), or a CSS selector to wait for, after the script.
+   * A sleep longer than timeoutMs fails. A selector gets up to timeoutMs to show up.
+   */
   wait?: number | string;
   /** Print only these elements. */
   elementSelector?: string;
@@ -436,6 +460,8 @@ export interface RunResult {
   previousSnapshot: Snapshot | null;
   /** False when cacheDirectory was null. */
   isCacheEnabled: boolean;
+  /** Why the since-last-run diff is off although cacheDirectory was set, like a function script without diffKey. null otherwise. */
+  cacheOffReason: string | null;
   /** Where the screenshot was saved. null when none was asked for. */
   screenshotPath: string | null;
   /** The shouldIncludeChildren option that the run used. */
@@ -484,6 +510,11 @@ export interface FormatOptions {
    * The aria section follows in every case when the run has aria snapshots.
    */
   report?: ReportDetail;
+  /**
+   * Longest text in characters. Past it the tree and aria lines are cut at a line boundary, and a last line says so.
+   * The facts line, since last run and the summary are never cut. Default 80000. Infinity turns the cap off.
+   */
+  maxCharacters?: number;
 }
 
 export type ReportDetail = 'tree' | 'findings' | 'summary' | 'changes' | 'none';

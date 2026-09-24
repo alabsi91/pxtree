@@ -11,6 +11,8 @@ import type {
   Gaps,
   Ink,
   MeasuredNode,
+  MeasureResult,
+  NodeIdentity,
   PageMeasurement,
   RunResult,
   Snapshot,
@@ -88,6 +90,13 @@ function createPaddingSpec(vertical: number, horizontal = vertical): Partial<Mea
 const background: Partial<Ink> = { background: '#ffffff' };
 const allBorders: Partial<Ink> = { borderSides: ['top', 'right', 'bottom', 'left'], borderColor: '#dddddd' };
 
+function createIdentityFromName(name: string): NodeIdentity {
+  const [tagAndId, ...classNames] = name.split('.');
+  const [tag, id] = tagAndId.split('#');
+
+  return { tag, id: id ?? null, classNames };
+}
+
 function createPage(spec: PageSpec): { page: PageMeasurement; analysis: Analysis } {
   const nodes: MeasuredNode[] = [];
   const analysis: Analysis = { layouts: [], findings: [], behindModalFindingCount: 0 };
@@ -106,6 +115,7 @@ function createPage(spec: PageSpec): { page: PageMeasurement; analysis: Analysis
       subtreeEnd: index,
       tag: nodeSpec.name.split(/[#.]/)[0],
       name: nodeSpec.name,
+      identity: createIdentityFromName(nodeSpec.name),
       text: nodeSpec.text ?? '',
       visibility: 'shown',
       clippedOutByIndex: null,
@@ -114,7 +124,8 @@ function createPage(spec: PageSpec): { page: PageMeasurement; analysis: Analysis
       layoutWidth: width,
       layoutHeight: height,
       rotateDegrees: 0,
-      scale: 1,
+      scale: { x: 1, y: 1 },
+      flippedAxis: null,
       translate: null,
       isInsideTransform: false,
       isAnimating: false,
@@ -200,7 +211,7 @@ function createPage(spec: PageSpec): { page: PageMeasurement; analysis: Analysis
     isScrollLocked: false,
     modalIndex: null,
     failedFontFamilies: [],
-    isNodeCapReached: false,
+    cappedElementCount: null,
     nodes,
     topLayerIndexes,
     element: null,
@@ -223,6 +234,7 @@ function createRun(page: PageMeasurement, analysis: Analysis, overrides: Partial
     analysis,
     previousSnapshot: null,
     isCacheEnabled: false,
+    cacheOffReason: null,
     screenshotPath: null,
     shouldIncludeChildren: true,
     ariaSnapshots: null,
@@ -675,7 +687,7 @@ dialog#confirm-delete 480x200 @400,300 [top layer modal][pad 24][gaps 16][render
   test('--element into the modal page prints the collapsed part normally', () => {
     const spec = createModalPageSpec();
 
-    spec.page = { ...spec.page, element: { selector: 'div', matchedIndexes: [1], matchedCount: 1 } };
+    spec.page = { ...spec.page, element: { selector: 'div', matchedIndexes: [1], matchedCount: 1, unwalkedCount: 0 } };
 
     const treeLines = getTreeLines(formatPage(spec));
 
@@ -707,6 +719,14 @@ describe('folding', () => {
 
     assert.equal(identicalLines[1], '  li.item "Item" 300x40 [text 16/24] ×2');
     assert.equal(differentLines.length, 3);
+  });
+
+  test('siblings that differ only in text do not fold ×N but fold as similar', () => {
+    const itemTexts = ['Home', 'Pricing', 'Docs', 'Blog'];
+    const itemSpecs = itemTexts.map((text, position) => ({ ...createItemSpec([0, position * 40]), text }));
+    const treeLines = getTreeLines(formatPage({ roots: [{ name: 'body', size: [1280, 800], children: itemSpecs }] }));
+
+    assert.deepEqual(treeLines, ['body 1280x800', '  li.item "Home" 300x40 [text 16/24]', '  …×3 similar li.item 300x40']);
   });
 
   test('a finding inside an identical sibling stops the fold and similar folding keeps it', () => {
@@ -826,6 +846,17 @@ describe('tags', () => {
     assert.equal(line, 'div.box 110x60 [rotated 30° from 100x20][scroll y 568 in 300 at 120, 15 of 25 out][pad 1 2 3][shadow root]');
   });
 
+  test('an even scale prints one factor, an uneven scale both, and a flip its axis', () => {
+    const transformNode = { layoutWidth: 100, layoutHeight: 20 };
+
+    assert.equal(formatNode({ name: 'div.even', size: [200, 40], node: { ...transformNode, scale: { x: 2, y: 2 } } }), 'div.even 200x40 [scaled 2.00 from 100x20]');
+    assert.equal(
+      formatNode({ name: 'div.uneven', size: [200, 20], node: { ...transformNode, scale: { x: 2, y: 1 } } }),
+      'div.uneven 200x20 [scaled 2.00x1.00 from 100x20]',
+    );
+    assert.equal(formatNode({ name: 'div.flip', size: [100, 20], node: { ...transformNode, flippedAxis: 'x' } }), 'div.flip 100x20 [flipped x from 100x20]');
+  });
+
   test('a box over 100000 px on one axis says so', () => {
     assert.equal(formatNode({ name: 'div.list', size: [300, 120000] }), 'div.list 300x120000 [over 100000 px]');
   });
@@ -910,7 +941,7 @@ describe('tags', () => {
       page: {
         scroll: { x: 0, y: 0, maxX: 3, maxY: 0 },
         failedFontFamilies: ['Inter'],
-        isNodeCapReached: true,
+        cappedElementCount: 31000,
         sampling: { gridStep: 9, pointCount: 21000, isCapped: true },
       },
       roots: [{ name: 'body', size: [1280, 800] }],
@@ -920,7 +951,7 @@ describe('tags', () => {
 
     assert.equal(
       factsLine,
-      '1280x800 light dpr 1 ltr scroll 0/0 page 1280x800 painted to 800 status 404 sideways 3 still moving div.spinner font failed Inter coverage sampled partly stopped at 20000 elements',
+      '1280x800 light dpr 1 ltr scroll 0/0 page 1280x800 painted to 800 status 404 sideways 3 still moving div.spinner font failed Inter coverage sampled partly walk capped at 20000 of 31000 elements',
     );
   });
 
@@ -1248,7 +1279,7 @@ describe('aria section', () => {
 
   test('heads each element match with its count, and says why an empty one is empty', () => {
     const { page, analysis } = createPage({ roots: [{ name: 'body', size: [1280, 800] }] });
-    const pageWithElement = { ...page, element: { selector: 'li', matchedIndexes: [0], matchedCount: 4 } };
+    const pageWithElement = { ...page, element: { selector: 'li', matchedIndexes: [0], matchedCount: 4, unwalkedCount: 0 } };
     const run = createRun(pageWithElement, analysis, {
       ariaSnapshots: ['- listitem: Profile', '', '', '- listitem: Sign out'],
       ariaMatchVisibilities: ['shown', 'not-rendered', 'not-painted', 'shown'],
@@ -1281,9 +1312,9 @@ describe('aria section', () => {
 });
 
 describe('--element', () => {
-  function createElementSpec(matchedIndexes: number[], matchedCount = matchedIndexes.length): PageSpec {
+  function createElementSpec(matchedIndexes: number[], matchedCount = matchedIndexes.length, unwalkedCount = 0): PageSpec {
     return {
-      page: { element: { selector: '.card', matchedIndexes, matchedCount } },
+      page: { element: { selector: '.card', matchedIndexes, matchedCount, unwalkedCount } },
       roots: [
         {
           name: 'body',
@@ -1340,6 +1371,22 @@ describe('--element', () => {
     assert.equal(noMatchLines[noMatchLines.length - 1], 'no element matches .card');
     assert.ok(partlyRenderedLines.includes('.card: 3 matched, 2 not rendered'));
     assert.ok(partlyRenderedLines.includes('    div.card 300x200 @0,60 [renders background][!! 12 wider than div.card]'));
+  });
+
+  test('a match past the walk cap says not walked, never not rendered', () => {
+    const reportLines = formatPage(createElementSpec([5], 3, 1), { shouldIncludeChildren: false });
+
+    assert.ok(reportLines.includes('.card: 3 matched, 1 not rendered, 1 not walked, page over 20000 elements'), reportLines.join('\n'));
+  });
+
+  test('no match names the frames that the walk did not enter, in the tree and in the summary report', () => {
+    const spec = createElementSpec([], 0);
+    spec.roots[0].children!.push({ name: 'iframe', size: [400, 200], node: { isFrame: true } });
+    const { page, analysis } = createPage(spec);
+    const result = { target: page.url, runs: [createRun(page, analysis)], error: null };
+
+    assert.equal(format(result).split('\n').at(-1), 'no element matches .card, 1 frame is not walked');
+    assert.equal(format(result, { report: 'summary' }).split('\n').at(-1), 'no element matches .card, 1 frame is not walked');
   });
 
   test('summary stays page-wide', () => {
@@ -1400,23 +1447,23 @@ describe('since last run', () => {
 
   test('pure moves that share one delta print as one line, in document order', () => {
     const previous: Snapshot = {
-      version: 1,
+      version: 3,
       nodes: {
-        'body': { width: 390, height: 900, x: 0, y: 0, tags: '', findings: [] },
-        'body>h1': { width: 358, height: 44, x: 0, y: 0, tags: '', findings: ['text overflows end 166'] },
-        'body>p': { width: 358, height: 60, x: 0, y: 64, tags: '', findings: [] },
-        'body>section.pricing': { width: 390, height: 400, x: 0, y: 140, tags: '', findings: [] },
-        'body>footer': { width: 390, height: 100, x: 0, y: 540, tags: '', findings: [] },
+        'body': { width: 390, height: 900, x: 0, y: 0, tags: '', findings: [], text: '' },
+        'body>h1': { width: 358, height: 44, x: 0, y: 0, tags: '', findings: ['text overflows end 166'], text: '' },
+        'body>p': { width: 358, height: 60, x: 0, y: 64, tags: '', findings: [], text: '' },
+        'body>section.pricing': { width: 390, height: 400, x: 0, y: 140, tags: '', findings: [], text: '' },
+        'body>footer': { width: 390, height: 100, x: 0, y: 540, tags: '', findings: [], text: '' },
       },
     };
     const current: Snapshot = {
-      version: 1,
+      version: 3,
       nodes: {
-        'body': { width: 390, height: 944, x: 0, y: 0, tags: '', findings: [] },
-        'body>h1': { width: 358, height: 88, x: 0, y: 0, tags: '', findings: [] },
-        'body>p': { width: 358, height: 60, x: 0, y: 108, tags: '', findings: [] },
-        'body>section.pricing': { width: 390, height: 400, x: 0, y: 184, tags: '', findings: [] },
-        'body>footer': { width: 390, height: 100, x: 0, y: 584, tags: '', findings: [] },
+        'body': { width: 390, height: 944, x: 0, y: 0, tags: '', findings: [], text: '' },
+        'body>h1': { width: 358, height: 88, x: 0, y: 0, tags: '', findings: [], text: '' },
+        'body>p': { width: 358, height: 60, x: 0, y: 108, tags: '', findings: [], text: '' },
+        'body>section.pricing': { width: 390, height: 400, x: 0, y: 184, tags: '', findings: [], text: '' },
+        'body>footer': { width: 390, height: 100, x: 0, y: 584, tags: '', findings: [], text: '' },
       },
     };
 
@@ -1430,18 +1477,25 @@ describe('since last run', () => {
 
   test('changes describe size, position, tags and findings', () => {
     const previous: Snapshot = {
-      version: 1,
-      nodes: { body: { width: 100, height: 20, x: 0, y: 0, tags: '[pad 8] [stuck]', findings: ['contrast 2.1'] } },
+      version: 3,
+      nodes: { body: { width: 100, height: 20, x: 0, y: 0, tags: '[pad 8] [stuck]', findings: ['contrast 2.1'], text: '' } },
     };
     const current: Snapshot = {
-      version: 1,
-      nodes: { body: { width: 110, height: 20, x: 0, y: 4, tags: '[pad 8] [fixed]', findings: [] } },
+      version: 3,
+      nodes: { body: { width: 110, height: 20, x: 0, y: 4, tags: '[pad 8] [fixed]', findings: [], text: '' } },
     };
 
     assert.deepEqual(formatDiff(previous, current, true), [
       'since last run: 1 changed',
       '  ~ body 110x20 was 100x20, @0,4 was @0,0, [fixed] was [stuck], findings gone: contrast 2.1',
     ]);
+  });
+
+  test('a node whose own text changed prints text changed, even when nothing else moved', () => {
+    const previous: Snapshot = { version: 3, nodes: { 'body>p': { width: 100, height: 20, x: 0, y: 0, tags: '', findings: [], text: 'para' } } };
+    const current: Snapshot = { version: 3, nodes: { 'body>p': { width: 100, height: 20, x: 0, y: 0, tags: '', findings: [], text: 'new copy' } } };
+
+    assert.deepEqual(formatDiff(previous, current, true), ['since last run: 1 changed', '  ~ body>p text changed']);
   });
 
   test('caps at 20 lines in document order', () => {
@@ -1605,5 +1659,37 @@ describe('top layer and scripts on the facts line', () => {
     const reportLines = format({ target: page.url, runs: [run], error: null }, { report: 'summary' }).split('\n');
 
     assert.deepEqual(reportLines.slice(1), ['summary: no findings', '  3 findings behind the modal not listed']);
+  });
+});
+
+describe('output cap', () => {
+  function createLongResult(): MeasureResult {
+    const paragraphSpecs: NodeSpec[] = Array.from({ length: 40 }, (_, position) => ({
+      name: `p.line-${position}`,
+      size: [1280, 20],
+      at: [0, position * 20],
+    }));
+    const { page, analysis } = createPage({ roots: [{ name: 'body', size: [1280, 800], children: paragraphSpecs }] });
+
+    return { target: page.url, runs: [createRun(page, analysis), createRun(page, analysis, { colorScheme: 'dark' })], error: null };
+  }
+
+  test('past the cap the tree stops at a line, the last line says so, and facts and summary stay', () => {
+    const fullLines = format(createLongResult(), { maxCharacters: Infinity }).split('\n');
+    const cutText = format(createLongResult(), { maxCharacters: 600 });
+    const cutLines = cutText.split('\n');
+
+    assert.ok(cutText.length <= 600, String(cutText.length));
+    assert.equal(cutLines.at(-1), 'output cut at 600 characters, use --report findings, --element or --max-chars');
+    assert.ok(cutLines.includes(fullLines[0]));
+    assert.equal(cutLines.filter((line) => line.startsWith('summary: ')).length, 2, cutText);
+    assert.ok(cutLines.slice(0, -1).every((line) => line === '' || fullLines.includes(line)), cutText);
+    assert.ok(cutLines.length < fullLines.length);
+  });
+
+  test('a report under the cap is not touched', () => {
+    const fullText = format(createLongResult(), { maxCharacters: Infinity });
+
+    assert.equal(format(createLongResult()), fullText);
   });
 });
