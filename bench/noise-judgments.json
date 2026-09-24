@@ -48,6 +48,6 @@
   },
   "pricing": {
     "overflows parent start 5 ×3: article.plan, article.plan.featured": "true and useful. The planted 390 plan-card overflow, the left side of it.",
-    "div.price tops 129..151 across siblings: section.plans": "true and useful. This is the planted Team-card misalignment. The longer blurb pushes the price down first, and the button moves with it. The expectation names a.cta, the last part that moves, so it scores as a miss."
+    "div.price tops 100..122 across siblings: section.plans":"true and useful. This is the planted Team-card misalignment. The longer blurb pushes the price down first, and the button moves with it. The expectation names a.cta, the last part that moves, so it scores as a miss."
   }
 }

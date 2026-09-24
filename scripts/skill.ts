@@ -26,9 +26,9 @@ Do not bother when:
 - the page is a big data table and you need all of it: about 1300 tokens, more than a screenshot
 
 Long sessions:
-- Start with \`--report summary\` (facts, since last run and findings, no tree), then on a big page \`--report findings\` (only the tree lines with findings, under their ancestors' names).
-- Drill into one area with \`--element '<selector>'\`.
+- Start with \`--report summary\` (facts, since last run and findings, no tree), then on a big page \`--report findings\` (only the tree lines with findings, under their ancestors' names), then drill into one area with \`--element '<selector>'\`.
 - After a fix, verify it with \`--report changes\`: only the facts line and what changed since the last run.
+- To prototype a fix with \`--script "await page.addStyleTag(…)"\`, give it and a plain baseline run the same \`--diff-key base\`, so since last run compares them.
 - Add \`--aria\` when you check labels, roles or reading order.
 - Take one \`--report none --screenshot shot.png\` at the end, only if the text leaves a doubt.
 - Never paste the tool output to the user.

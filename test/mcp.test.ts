@@ -40,6 +40,7 @@ test('lists a short measure tool and a guide tool', async () => {
   assert.deepEqual(tools.map((tool) => tool.name), ['measure', 'guide']);
   assert.ok(Buffer.byteLength(measureTool.description ?? '') < 1500, measureTool.description);
   assert.match(measureTool.description ?? '', /call the guide tool once before the first measure/i);
+  assert.match(measureTool.description ?? '', /If the pxtree skill is loaded, skip the guide tool/);
   assert.ok('target' in (measureTool.inputSchema.properties ?? {}));
 });
 
@@ -83,6 +84,7 @@ test('the server carries standing instructions', () => {
   assert.match(instructions, /after every CSS or markup change/);
   assert.match(instructions, /say so once and never mention it again/);
   assert.match(instructions, /Never paste the output to the user/);
+  assert.match(instructions, /If the pxtree skill is loaded, skip the guide tool/);
 });
 
 test('inputs are bounded: viewport sides, viewport count and timeout', async () => {

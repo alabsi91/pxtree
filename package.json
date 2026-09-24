@@ -22,6 +22,7 @@
     "url": "https://github.com/alabsi91/pxtree.git"
   },
   "license": "MIT",
+  "author": "Ahmed ALABSI",
   "mcpName": "io.github.alabsi91/pxtree",
   "type": "module",
   "bin": {

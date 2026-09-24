@@ -9,6 +9,7 @@ import {
   createRect,
   getBoxUnion,
   getEntriesIntersection,
+  getReachableClipEntries,
   getColorBytes,
   getFontMetrics,
   getInkDetails,
@@ -326,12 +327,17 @@ function getVisibility(
     return { visibility: 'sr-only', clippedOutByIndex: null };
   }
 
-  const ownEntries = clipEntries.filter((entry) => !entry.isViewport);
+  if (style.visibility === 'hidden' || style.visibility === 'collapse') {
+    return { visibility: 'unpainted-visibility', clippedOutByIndex: null };
+  }
+
+  const reachableEntries = getReachableClipEntries(clipEntries);
+  const ownEntries = reachableEntries.filter((entry) => !entry.isViewport);
   if (!doesBoxReachInto(box, getEntriesIntersection(ownEntries, false))) {
     return { visibility: 'clipped-out', clippedOutByIndex: getClippingEntry(box, ownEntries).clipperIndex };
   }
 
-  if (!doesBoxReachInto(box, getEntriesIntersection(clipEntries, false))) {
+  if (!doesBoxReachInto(box, getEntriesIntersection(reachableEntries, false))) {
     return { visibility: 'offscreen', clippedOutByIndex: null };
   }
 
@@ -345,10 +351,6 @@ function getVisibility(
       : box.right <= 0 && box.left < 0);
   if (isBeforeDocumentStart || isBeforeInlineStart) {
     return { visibility: 'offscreen', clippedOutByIndex: null };
-  }
-
-  if (style.visibility === 'hidden' || style.visibility === 'collapse') {
-    return { visibility: 'unpainted-visibility', clippedOutByIndex: null };
   }
 
   return { visibility: 'shown', clippedOutByIndex: null };
@@ -562,7 +564,7 @@ export function walkPage(elementSelector: string | null, maxNodes: number): Walk
   };
 }
 
-function getTopLayerElements(allShadowRoots: ShadowRoot[]): Element[] {
+export function getTopLayerElements(allShadowRoots: ShadowRoot[]): Element[] {
   const topLayerElements: Element[] = [...document.querySelectorAll(topLayerSelector)];
 
   for (const shadowRoot of allShadowRoots) {
@@ -793,6 +795,7 @@ function walkElement(element: Element, style: CSSStyleDeclaration, state: WalkSt
     isDisabled: element.matches(':disabled'),
     isInlineInText: false,
     isInert: (parent !== null && !inheritance.isTopLayerRoot && parent.record.isInert) || element.hasAttribute('inert'),
+    isPointerEventsNone: style.pointerEvents === 'none',
     topLayer: inheritance.isTopLayerRoot ? getTopLayerKind(element) : null,
     shadow: shadowRoot ? (element.shadowRoot ? 'open' : 'closed') : null,
     isSlotted: inheritance.isSlotted,
@@ -939,17 +942,19 @@ function getEffectiveClip(box: Box, clipEntries: ClipEntry[]): MeasuredNode['cli
   }
 
   const intersection = getEntriesIntersection(clipEntries, true);
+  const reachableEntries = getReachableClipEntries(clipEntries);
 
   return {
     rect: createRect(getBoundedBox(intersection)),
-    clipperIndexX: getAxisClipperIndex(box.left, box.right, clipEntries, 'x'),
-    clipperIndexY: getAxisClipperIndex(box.top, box.bottom, clipEntries, 'y'),
+    clipperIndexX: getAxisClipperIndex(box.left, box.right, reachableEntries, 'x'),
+    clipperIndexY: getAxisClipperIndex(box.top, box.bottom, reachableEntries, 'y'),
   };
 }
 
 /**
  * The entry that cuts the most off the box on one axis, else the innermost entry on that axis. null for the viewport or no entry.
  * Of entries that cut the same amount, the innermost wins, because nothing outside it can bring back what it cuts.
+ * Pass the reachable entries, so that a clipper outside a scroller on that axis never wins.
  */
 function getAxisClipperIndex(boxStart: number, boxEnd: number, clipEntries: ClipEntry[], axis: 'x' | 'y'): number | null {
   const axisEntries = clipEntries.filter((entry) => (axis === 'x' ? entry.xKind : entry.yKind) !== 'none');

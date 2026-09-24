@@ -87,8 +87,50 @@ test('app-shell.html: the window does not scroll, main does, and --scroll reache
   const topLines = await formatFixture(session, 'app-shell.html');
   const targetLines = await formatFixture(session, 'app-shell.html', { scroll: '#target' });
 
-  assert.match(topLines[0], / window does not scroll, main scrolls y 2400 in 740/);
-  assert.match(findLine(targetLines, 'main '), /\[scroll y 2400 in 740 at 1600, /);
+  assert.match(topLines[0], / window does not scroll, main\.content scrolls y 2400 in 740/);
+  assert.match(findLine(targetLines, 'main.content '), /\[scroll y 2400 in 740 at 1600, /);
+});
+
+const openHelpDialog = 'await page.evaluate(() => document.querySelector("dialog.help").showModal())';
+
+test('app-shell.html: content that a scroller can bring into view has no clipping finding, whatever clips outside the scroller', async () => {
+  const reportLines = await formatFixture(session, 'app-shell.html', { report: 'summary' });
+  const dialogLines = await formatFixture(session, 'app-shell.html', { script: openHelpDialog });
+  const noteLines = await formatFixture(session, 'app-shell.html', { elementSelector: '.panel-note' });
+
+  assert.ok(!reportLines.some((line) => line.includes('clipped out')), reportLines.join('\n'));
+  assert.ok(!dialogLines.some((line) => line.includes('clipped out')), dialogLines.join('\n'));
+  assert.doesNotMatch(findLine(noteLines, 'p.panel-note'), /clipped|\[!!/);
+  assert.doesNotMatch(findLine(dialogLines, 'p.dialog-line.dialog-last'), /clipped|\[!!/);
+});
+
+test('app-shell.html: a collapsed visibility hidden panel is not painted, renders nothing and has no findings', async () => {
+  const reportLines = await formatFixture(session, 'app-shell.html');
+
+  assert.equal(findLine(reportLines, 'div.collapsed-panel').trim(), 'div.collapsed-panel 72x740 @-72,0 [translated x -72][not painted: visibility hidden][children skipped 1]');
+});
+
+test('app-shell.html: fully covered and pointer-events none neighbors take no part in small target spacing', async () => {
+  const reportLines = await formatFixture(session, 'app-shell.html');
+
+  assert.doesNotMatch(findLine(reportLines, 'button.small.beside-covered'), /small target/);
+  assert.doesNotMatch(findLine(reportLines, 'button.small.beside-passthrough'), /small target/);
+  assert.match(findLine(reportLines, 'button.small.tight'), /\[!! small target 16x16\]/);
+});
+
+test('app-shell.html: parts at the same position pair only with the same tag, so center-aligned groups print no tops', async () => {
+  const reportLines = await formatFixture(session, 'app-shell.html');
+
+  assert.doesNotMatch(findLine(reportLines, 'div.group-row'), /tops/);
+});
+
+test('app-shell.html: findings behind a modal are counted, not listed, and an element match behind it still prints them', async () => {
+  const reportLines = await formatFixture(session, 'app-shell.html', { script: openHelpDialog, report: 'summary' });
+  const elementLines = await formatFixture(session, 'app-shell.html', { script: openHelpDialog, elementSelector: '.tight' });
+
+  assert.match(reportLines[0], / top layer: dialog\.help modal$/);
+  assert.deepEqual(reportLines.slice(1), ['summary: no findings', '  3 findings behind the modal not listed']);
+  assert.match(findLine(elementLines, 'button.small.tight'), /\[!! small target 16x16\]/);
 });
 
 test('transforms.html measures a child of a scaled padded box from its drawn content box', async () => {

@@ -326,6 +326,33 @@ export function isFullInsetClipPath(clipPath: string): boolean {
   return top + bottom >= 100 || left + right >= 100;
 }
 
+/**
+ * The entries without the axes that a scroll container further in scrolls. Scrolling brings content into that
+ * scroller's box, so a clipper outside it does not decide what the content can reach on that axis.
+ */
+export function getReachableClipEntries(entries: ClipEntry[]): ClipEntry[] {
+  const innermostScrollerPositionX = entries.findLastIndex((entry) => entry.xKind === 'scroll');
+  const innermostScrollerPositionY = entries.findLastIndex((entry) => entry.yKind === 'scroll');
+
+  return entries.map((entry, position) => {
+    const isOutsideScrollerX = position < innermostScrollerPositionX;
+    const isOutsideScrollerY = position < innermostScrollerPositionY;
+    if (!isOutsideScrollerX && !isOutsideScrollerY) {
+      return entry;
+    }
+
+    return {
+      ...entry,
+      left: isOutsideScrollerX ? -Infinity : entry.left,
+      right: isOutsideScrollerX ? Infinity : entry.right,
+      top: isOutsideScrollerY ? -Infinity : entry.top,
+      bottom: isOutsideScrollerY ? Infinity : entry.bottom,
+      xKind: isOutsideScrollerX ? 'none' : entry.xKind,
+      yKind: isOutsideScrollerY ? 'none' : entry.yKind,
+    };
+  });
+}
+
 export function getEntriesIntersection(entries: ClipEntry[], shouldIncludeScroll: boolean): Box {
   const intersection = { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
 

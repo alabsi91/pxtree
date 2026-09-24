@@ -1,5 +1,6 @@
 import type {
   Analysis,
+  AriaMatchVisibility,
   ColorScheme,
   Finding,
   FormatOptions,
@@ -13,16 +14,16 @@ import type {
   ScrollInfo,
   TextInfo,
 } from '../types.ts';
+import { getContrastRatio, getPrintedContrastRatio } from '../findings/findings.ts';
 import { getBottom, getIntersection, getPaddingBox, getRight, getSiblingGroupNames, hasBoxInk, roundPixels } from '../findings/layout.ts';
-import { createSnapshot, formatDiff, getNodePaths } from './diff.ts';
-import { createNameCounts, formatSummary, getFindingCountText, getShortName } from './summary.ts';
+import { createSnapshot, formatDiff } from './diff.ts';
+import { createNameCounts, formatSummary, getShortName } from './summary.ts';
 
 const nodeCapCount = 20000;
 const overSizeTagThresholdPx = 100000;
 const maximumChainNameCount = 3;
 const minimumSimilarRunLength = 3;
 const maximumListedGapCount = 6;
-const maximumAcrossLineCount = 20;
 
 /** A page with the lookups that the tree, the tags and the snapshot need. */
 export interface PageTree {
@@ -71,14 +72,6 @@ export function format(result: MeasureResult, options: FormatOptions = {}): stri
 
     return [...reportLines, ...formatAriaSection(result.runs, runPosition)].join('\n');
   });
-  const measuredPageTrees = pageTrees.filter((pageTree) => pageTree !== null);
-  const isEveryRunMeasured = measuredPageTrees.length === pageTrees.length;
-  const isAcrossReport = reportDetail === 'tree' || reportDetail === 'findings' || reportDetail === 'summary';
-  const shouldPrintAcrossRuns = result.runs.length > 1 && isEveryRunMeasured && isAcrossReport;
-  const acrossLines = shouldPrintAcrossRuns ? formatAcrossRuns(result.runs, measuredPageTrees) : [];
-  if (acrossLines.length > 0) {
-    runBlocks.push(acrossLines.join('\n'));
-  }
 
   return runBlocks.join('\n\n');
 }
@@ -105,9 +98,11 @@ function formatRunReport(
   }
 
   const summaryLines = formatSummary(pageTree.page, pageTree.analysis);
+  const sameSummaryRun = getSameSummaryRun(runs, pageTrees, runPosition, summaryLines);
+  const printedSummaryLines = sameSummaryRun === null ? summaryLines : [`summary: same as ${sameSummaryRun.colorScheme}`];
 
   if (reportDetail === 'summary') {
-    return [factsLine, ...changesLines, ...summaryLines];
+    return [factsLine, ...changesLines, ...printedSummaryLines];
   }
 
   const sameTreeRun = getSameTreeRun(runs, pageTrees, runPosition);
@@ -116,7 +111,7 @@ function formatRunReport(
       ? formatTree(pageTree, run.shouldIncludeChildren, shouldShowColors, reportDetail === 'findings')
       : formatTreeDifferences(pageTree, sameTreeRun.pageTree, sameTreeRun.colorScheme, shouldShowColors);
 
-  return [factsLine, ...changesLines, ...summaryLines, ...treeLines];
+  return [factsLine, ...changesLines, ...printedSummaryLines, ...treeLines];
 }
 
 // ---------- runs that differ only in scheme ----------
@@ -125,12 +120,8 @@ function hasSameViewport(firstRun: RunResult, secondRun: RunResult): boolean {
   return firstRun.viewport.width === secondRun.viewport.width && firstRun.viewport.height === secondRun.viewport.height;
 }
 
-/** An earlier run at the same viewport and scroll whose tree matches this one once findings and colors are left out. */
-function getSameTreeRun(
-  runs: RunResult[],
-  pageTrees: Array<PageTree | null>,
-  runPosition: number,
-): { pageTree: PageTree; colorScheme: ColorScheme } | null {
+/** The first run at the same viewport and scroll, when it is an earlier run with another scheme. Otherwise null. */
+function getOtherSchemeRunPosition(runs: RunResult[], pageTrees: Array<PageTree | null>, runPosition: number): number | null {
   const run = runs[runPosition];
   const pageTree = pageTrees[runPosition];
   const earlierPosition = runs.findIndex((earlierRun, earlierRunPosition) => {
@@ -139,29 +130,73 @@ function getSameTreeRun(
 
     return hasSameViewport(earlierRun, run) && hasSameScroll;
   });
-  const earlierRun = runs[earlierPosition];
-  const earlierTree = pageTrees[earlierPosition];
 
-  if (earlierPosition === runPosition || earlierRun.colorScheme === run.colorScheme) {
+  if (earlierPosition === runPosition || runs[earlierPosition].colorScheme === run.colorScheme) {
     return null;
   }
 
-  if (pageTree === null || earlierTree === null || !hasSameTreeWithoutFindings(earlierTree, pageTree)) {
+  return earlierPosition;
+}
+
+/** An earlier run at the same viewport and scroll whose tree matches this one once findings and colors are left out. */
+function getSameTreeRun(
+  runs: RunResult[],
+  pageTrees: Array<PageTree | null>,
+  runPosition: number,
+): { pageTree: PageTree; colorScheme: ColorScheme } | null {
+  const earlierPosition = getOtherSchemeRunPosition(runs, pageTrees, runPosition);
+  const pageTree = pageTrees[runPosition];
+  const earlierTree = earlierPosition === null ? null : pageTrees[earlierPosition];
+
+  if (earlierPosition === null || pageTree === null || earlierTree === null || !hasSameTreeWithoutFindings(earlierTree, pageTree)) {
     return null;
   }
 
-  return { pageTree: earlierTree, colorScheme: earlierRun.colorScheme };
+  return { pageTree: earlierTree, colorScheme: runs[earlierPosition].colorScheme };
+}
+
+/** An earlier run at the same viewport and scroll, with another scheme, whose summary prints the same lines. */
+function getSameSummaryRun(
+  runs: RunResult[],
+  pageTrees: Array<PageTree | null>,
+  runPosition: number,
+  summaryLines: string[],
+): { colorScheme: ColorScheme } | null {
+  const earlierPosition = getOtherSchemeRunPosition(runs, pageTrees, runPosition);
+  const earlierTree = earlierPosition === null ? null : pageTrees[earlierPosition];
+
+  if (earlierPosition === null || earlierTree === null) {
+    return null;
+  }
+
+  const earlierSummaryLines = formatSummary(earlierTree.page, earlierTree.analysis);
+  const isSameSummary = earlierSummaryLines.join('\n') === summaryLines.join('\n');
+
+  return isSameSummary ? { colorScheme: runs[earlierPosition].colorScheme } : null;
 }
 
 // ---------- aria ----------
 
-/** Each snapshot under its heading. Nothing when every snapshot is empty. `aria: same as light` when an earlier scheme run had the same snapshots. */
+/** The snapshot on the lines after its heading, or `none` on the heading line when it is empty, with the reason when there is one. */
+function getAriaSnapshotLines(heading: string, ariaSnapshot: string, visibility: AriaMatchVisibility): string[] {
+  if (ariaSnapshot !== '') {
+    return [heading, ariaSnapshot];
+  }
+
+  const reasonText = visibility === 'shown' ? '' : ` (${visibility.replace('-', ' ')})`;
+
+  return [`${heading} none${reasonText}`];
+}
+
+/**
+ * Each snapshot under its heading, `none` for an empty one. Several element matches are headed `match N of M`.
+ * `aria: same as light` when an earlier scheme run had the same snapshots.
+ */
 function formatAriaSection(runs: RunResult[], runPosition: number): string[] {
   const run = runs[runPosition];
-  const ariaSnapshots = run.ariaSnapshots ?? [];
-  const hasAriaText = ariaSnapshots.some((ariaSnapshot) => ariaSnapshot !== '');
+  const ariaSnapshots = run.ariaSnapshots;
 
-  if (!hasAriaText) {
+  if (ariaSnapshots === null) {
     return [];
   }
 
@@ -178,15 +213,19 @@ function formatAriaSection(runs: RunResult[], runPosition: number): string[] {
     return [`aria: same as ${sameAriaRun.colorScheme}`];
   }
 
-  if (ariaSnapshots.length === 1) {
-    return ['aria:', ariaSnapshots[0]];
+  const ariaMatchVisibilities = run.ariaMatchVisibilities ?? [];
+
+  if (ariaSnapshots.length <= 1) {
+    return getAriaSnapshotLines('aria:', ariaSnapshots[0] ?? '', ariaMatchVisibilities[0] ?? 'shown');
   }
 
   const elementSelector = run.page?.element?.selector;
 
-  return ariaSnapshots.flatMap((ariaSnapshot, matchPosition) =>
-    ariaSnapshot === '' ? [] : [`aria ${elementSelector} match ${matchPosition + 1}:`, ariaSnapshot],
-  );
+  return ariaSnapshots.flatMap((ariaSnapshot, matchPosition) => {
+    const heading = `aria ${elementSelector} match ${matchPosition + 1} of ${ariaSnapshots.length}:`;
+
+    return getAriaSnapshotLines(heading, ariaSnapshot, ariaMatchVisibilities[matchPosition] ?? 'shown');
+  });
 }
 
 function getComparableNodeLine(tree: PageTree, index: number): string {
@@ -286,6 +325,10 @@ function getFactsLine(run: RunResult, pageTree: PageTree | null): string {
     factTexts.push(`redirected to ${getPrintableText(run.redirectedUrl)}`);
   }
 
+  if (run.isPageUnchangedByScript) {
+    factTexts.push('page unchanged by script');
+  }
+
   if (pageTree !== null) {
     factTexts.push(...getLayoutFactTexts(pageTree));
   }
@@ -336,8 +379,10 @@ function getLayoutFactTexts(pageTree: PageTree): string[] {
     factTexts.push(innerScrollFactText);
   }
 
-  if (page.modalIndex !== null) {
-    factTexts.push(`modal ${page.nodes[page.modalIndex].name}`);
+  if (page.topLayerIndexes.length > 0) {
+    const topLayerTexts = page.topLayerIndexes.map((index) => `${page.nodes[index].name} ${page.nodes[index].topLayer}`);
+
+    factTexts.push(`top layer: ${topLayerTexts.join(', ')}`);
   }
 
   return factTexts;
@@ -509,7 +554,8 @@ export function getNodeTags(tree: PageTree, index: number, shouldShowColors: boo
     nodeTags.push(getTextTag(node.textInfo, shouldShowColors));
   }
 
-  const rendersTag = getRendersTag(node, shouldShowColors);
+  const isUnpainted = node.visibility === 'unpainted-visibility' || node.visibility === 'unpainted-opacity';
+  const rendersTag = isUnpainted ? null : getRendersTag(node, shouldShowColors);
   if (rendersTag !== null) {
     nodeTags.push(rendersTag);
   }
@@ -717,6 +763,10 @@ function getTextTag(textInfo: TextInfo, shouldShowColors: boolean): string {
 
   if (shouldShowColors) {
     textTagParts.push(`${textInfo.color ?? 'transparent'} on ${textInfo.background ?? 'image'}`);
+
+    if (textInfo.color !== null && textInfo.background !== null) {
+      textTagParts.push(`contrast ${getPrintedContrastRatio(getContrastRatio(textInfo.color, textInfo.background))}`);
+    }
 
     return textTagParts.join(', ');
   }
@@ -1134,71 +1184,4 @@ function formatTree(tree: PageTree, shouldIncludeChildren: boolean, shouldShowCo
   }
 
   return treeLines;
-}
-
-// ---------- across runs ----------
-
-interface AcrossFinding {
-  shortName: string;
-  text: string;
-  runPositions: Set<number>;
-}
-
-/** Findings that only some runs have, or no lines when every run has the same findings. */
-function formatAcrossRuns(runs: RunResult[], pageTrees: PageTree[]): string[] {
-  const isSchemeMixed = runs.some((run) => run.colorScheme !== runs[0].colorScheme);
-  const runLabels = runs.map((run) => {
-    const sizeLabel = `${run.viewport.width}x${run.viewport.height}`;
-
-    return isSchemeMixed ? `${sizeLabel} ${run.colorScheme}` : sizeLabel;
-  });
-  const findingsByKey = new Map<string, AcrossFinding>();
-
-  pageTrees.forEach(({ page, analysis }, runPosition) => {
-    const nodePaths = getNodePaths(page);
-    const nameCounts = createNameCounts(page);
-    const findingsInTreeOrder = [...analysis.findings].sort((first, second) => first.nodeIndex - second.nodeIndex);
-
-    for (const finding of findingsInTreeOrder) {
-      const key = `${nodePaths[finding.nodeIndex]} ${finding.summaryText}`;
-      const acrossFinding = findingsByKey.get(key) ?? {
-        shortName: getShortName(page, finding.nodeIndex, nameCounts),
-        text: finding.text,
-        runPositions: new Set<number>(),
-      };
-
-      acrossFinding.runPositions.add(runPosition);
-      findingsByKey.set(key, acrossFinding);
-    }
-  });
-
-  const acrossFindings = [...findingsByKey.values()];
-  const partialFindings = acrossFindings.filter((acrossFinding) => acrossFinding.runPositions.size < runs.length);
-  const sharedCount = acrossFindings.length - partialFindings.length;
-
-  if (partialFindings.length === 0) {
-    return [];
-  }
-
-  const countByPartialLine = new Map<string, number>();
-
-  for (const partialFinding of partialFindings) {
-    const findingRunLabels = [...partialFinding.runPositions].map((runPosition) => runLabels[runPosition]);
-    const partialLine = `  ${findingRunLabels.join(', ')} only: ${partialFinding.shortName} ${partialFinding.text}`;
-
-    countByPartialLine.set(partialLine, (countByPartialLine.get(partialLine) ?? 0) + 1);
-  }
-
-  const partialLines = [...countByPartialLine].map(([partialLine, count]) => (count > 1 ? `${partialLine} ×${count}` : partialLine));
-  const acrossLines = ['across runs:', ...partialLines.slice(0, maximumAcrossLineCount)];
-
-  if (partialLines.length > maximumAcrossLineCount) {
-    acrossLines.push(`  … ${partialLines.length - maximumAcrossLineCount} more`);
-  }
-
-  if (sharedCount > 0) {
-    acrossLines.push(`  all runs: ${getFindingCountText(sharedCount)} shared`);
-  }
-
-  return acrossLines;
 }

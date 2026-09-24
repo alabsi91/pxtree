@@ -90,14 +90,32 @@ test('state: the aria tree follows --element, one heading per match, whole subtr
   });
 
   assert.deepEqual(itemLines.slice(1), [
-    'aria .menu-item match 1:',
+    'aria .menu-item match 1 of 3:',
     '- listitem: Profile',
-    'aria .menu-item match 2:',
+    'aria .menu-item match 2 of 3:',
     '- listitem: Settings',
-    'aria .menu-item match 3:',
+    'aria .menu-item match 3 of 3:',
     '- listitem: Sign out',
   ]);
   assert.deepEqual(menuLines.slice(1), ['aria:', '- list:', '  - listitem: Profile', '  - listitem: Settings', '  - listitem: Sign out']);
+});
+
+test('state: element matches with no box print none (not rendered) under their count', async () => {
+  const itemLines = await formatFixture(session, 'state', { shouldCaptureAriaSnapshot: true, elementSelector: '.menu-item', report: 'none' });
+
+  assert.deepEqual(itemLines.slice(1), [
+    'aria .menu-item match 1 of 3: none (not rendered)',
+    'aria .menu-item match 2 of 3: none (not rendered)',
+    'aria .menu-item match 3 of 3: none (not rendered)',
+  ]);
+});
+
+test('state: a script that changes nothing prints page unchanged by script, one that opens the menu does not', async () => {
+  const unchangedLines = await formatFixture(session, 'state', { script: 'await page.mouse.click(5, 5)', report: 'none', shouldCaptureAriaSnapshot: true });
+  const openedLines = await formatFixture(session, 'state', { script: "await page.click('#menu-toggle')", report: 'none', shouldCaptureAriaSnapshot: true });
+
+  assert.match(unchangedLines[0], / page unchanged by script/);
+  assert.doesNotMatch(openedLines[0], /unchanged/);
 });
 
 test('state: a second scheme with the same aria tree prints aria: same as light', async () => {

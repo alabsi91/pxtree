@@ -142,6 +142,8 @@ export interface MeasuredNode {
   /** An inline element with sibling text in the same parent. */
   isInlineInText: boolean;
   isInert: boolean;
+  /** Computed `pointer-events` is `none`. */
+  isPointerEventsNone: boolean;
   /** Set for a top-layer root. */
   topLayer: 'modal' | 'popover' | 'fullscreen' | null;
   /** Set when this node hosts a walked shadow root. */
@@ -254,6 +256,8 @@ export interface PxtreeInPage {
   /** One element with own text per distinct computed font-family stack, in document order. */
   getFontSampleElements(options: { maxStackCount: number }): Element[];
   getFontRequests(elements: Element[]): FontRequest[];
+  /** The DOM with shadow roots, control values, top layer and scroll offsets as one string, to tell whether a script changed the page. */
+  getPageStateText(): string;
 }
 
 // ---------- findings ----------
@@ -323,8 +327,10 @@ export interface NodeLayout {
 export interface Analysis {
   /** Same order and length as PageMeasurement.nodes. */
   layouts: NodeLayout[];
-  /** Sorted by node index. */
+  /** Sorted by node index. Nodes inert behind a modal have none, except inside an element match. */
   findings: Finding[];
+  /** Findings left out because their node is inert behind a modal. */
+  behindModalFindingCount: number;
 }
 
 // ---------- snapshots for since last run ----------
@@ -374,6 +380,11 @@ export interface MeasureOptions {
   script?: string | PageScript;
   /** Text that identifies the script for the cache key. The CLI passes the file content. Default is the script when it is a string. */
   scriptCacheText?: string;
+  /**
+   * A name that replaces the script and the wait in the since-last-run key. A scripted run then compares with any
+   * earlier run that used the same name, with or without a script. Default: none.
+   */
+  diffKey?: string;
   /** Milliseconds to sleep, or a selector to wait for, after the script. */
   wait?: number | string;
   /** Print only these elements. */
@@ -421,11 +432,20 @@ export interface RunResult {
   shouldIncludeChildren: boolean;
   /** Aria snapshots as YAML: one for the page, or one per elementSelector match. null when none was asked for. */
   ariaSnapshots: string[] | null;
+  /**
+   * Per aria snapshot, what its element shows: 'not-rendered' when it has no box, 'not-painted' when it or an ancestor
+   * is `visibility: hidden` or `opacity: 0`. It says why a snapshot is empty. null when no aria snapshot was asked for.
+   */
+  ariaMatchVisibilities: AriaMatchVisibility[] | null;
+  /** True when a script ran and the DOM, the top layer and the window scroll are the same as before it. */
+  isPageUnchangedByScript: boolean;
   /** The URL that loading ended on, when it differs from the target by more than a trailing slash or a default port. */
   redirectedUrl: string | null;
   /** Font stacks whose first named family did not draw the text. Empty when the measurement was skipped. */
   fontFallbacks: FontFallback[];
 }
+
+export type AriaMatchVisibility = 'shown' | 'not-painted' | 'not-rendered';
 
 export interface FontFallback {
   /** The first family of the stack that is not generic. */
@@ -448,7 +468,7 @@ export interface FormatOptions {
   shouldShowColors?: boolean;
   /**
    * How much of the measurement each run prints. Default 'tree'.
-   * 'tree': facts line, since last run, summary, tree and the across block.
+   * 'tree': facts line, since last run, summary and tree.
    * 'findings': the same, with the tree cut down to the lines that carry a finding and the names of their ancestors.
    * 'summary': the same without the tree. 'changes': facts line and since last run. 'none': the facts line only.
    * The aria section follows in every case when the run has aria snapshots.

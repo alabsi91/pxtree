@@ -6,17 +6,101 @@
     <style>
       html, body { height: 100%; margin: 0; font-family: sans-serif; }
       body { display: flex; flex-direction: column; }
-      header { flex: none; height: 60px; background: #eeeeee; }
+      header { flex: none; display: flex; align-items: center; gap: 60px; height: 60px; padding: 0 16px; background: #eeeeee; }
+      button { padding: 0; border: 1px solid #555555; background: #ffffff; font: 14px sans-serif; }
+
+      .pair { display: flex; align-items: center; gap: 2px; height: 30px; position: relative; }
+      .small { width: 16px; height: 16px; }
+      .large { width: 30px; height: 30px; }
+      .passthrough { pointer-events: none; }
+      .cover { position: absolute; top: -2px; left: 16px; width: 36px; height: 34px; background: #333333; }
+
+      .shell { flex: 1; display: flex; overflow: hidden; position: relative; min-height: 0; }
+      .side-panel { flex: none; width: 240px; overflow: auto; background: #fafafa; }
+      .panel-block { height: 300px; }
+      .panel-note { margin: 0; padding-top: 200px; }
       main { flex: 1; overflow: auto; }
       section { height: 800px; }
+
+      .group-row { display: flex; align-items: center; justify-content: space-between; padding: 12px; }
+      .group { display: flex; align-items: center; gap: 12px; }
+      .tool { width: 24px; height: 24px; }
+      .play { width: 32px; height: 32px; }
+      .divider { width: 1px; height: 18px; background: #999999; }
+
+      .collapsed-panel {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 72px;
+        box-sizing: border-box;
+        visibility: hidden;
+        translate: -72px;
+        background: #ffffff;
+        border-right: 1px solid #cccccc;
+        box-shadow: 0 0 8px #00000033;
+      }
+
+      dialog.help { width: 400px; padding: 0; border: 0; }
+      .dialog-frame { height: 300px; overflow: hidden; }
+      .dialog-scroll { height: 300px; overflow: auto; }
+      .dialog-line { height: 200px; margin: 0; }
     </style>
   </head>
   <body>
-    <header>App</header>
-    <main>
-      <section class="first">One</section>
-      <section class="second">Two</section>
-      <section class="third" id="target">Three</section>
-    </main>
+    <header>
+      <span class="title">App</span>
+      <div class="pair covered-pair">
+        <button class="small beside-covered" aria-label="Beside covered"></button>
+        <button class="large covered" aria-label="Covered"></button>
+        <div class="cover"></div>
+      </div>
+      <div class="pair passthrough-pair">
+        <button class="small beside-passthrough" aria-label="Beside passthrough"></button>
+        <button class="large passthrough" aria-label="Passthrough"></button>
+      </div>
+      <div class="pair tight-pair">
+        <button class="small tight" aria-label="First"></button>
+        <button class="small tight" aria-label="Second"></button>
+      </div>
+    </header>
+    <div class="shell">
+      <aside class="side-panel">
+        <div class="panel-block">
+          <div class="group-row">
+            <div class="group">
+              <button class="tool" aria-label="Toggle"></button>
+              <div class="divider"></div>
+              <button class="play" aria-label="Play"></button>
+            </div>
+            <div class="group">
+              <div class="divider"></div>
+              <button class="tool" aria-label="Help"></button>
+            </div>
+          </div>
+        </div>
+        <div class="panel-block"></div>
+        <div class="panel-block">
+          <p class="panel-note">Below the fold</p>
+        </div>
+      </aside>
+      <main class="content">
+        <section class="first">One</section>
+        <section class="second">Two</section>
+        <section class="third" id="target">Three</section>
+      </main>
+      <div class="collapsed-panel"><span>Collapsed</span></div>
+    </div>
+    <dialog class="help">
+      <div class="dialog-frame">
+        <div class="dialog-scroll">
+          <p class="dialog-line">First line</p>
+          <p class="dialog-line">Second line</p>
+          <p class="dialog-line">Third line</p>
+          <p class="dialog-line dialog-last">Last line</p>
+        </div>
+      </div>
+    </dialog>
   </body>
 </html>

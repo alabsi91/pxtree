@@ -2,7 +2,7 @@ import type { FontRequest, MeasurePageOptions, PageMeasurement, PxtreeInPage } f
 import { measureCoverageAndColors } from './coverage.ts';
 import { getEntriesIntersection, getStuckStates, roundToHundredth } from './geometry.ts';
 import { revealByScrolling, settlePage } from './settle.ts';
-import { type WalkResult, closedShadowRoots, walkPage } from './walk.ts';
+import { type WalkResult, closedShadowRoots, getAllShadowRoots, getTopLayerElements, walkPage } from './walk.ts';
 
 const maxStickyProbeCount = 20;
 
@@ -147,7 +147,47 @@ function measurePage(options: MeasurePageOptions): PageMeasurement {
   };
 }
 
+/**
+ * The page's state as one string: the DOM with its shadow roots, form control values, the top layer, and the scroll
+ * offsets of the window and of every element. Hover and focus are not part of it.
+ */
+function getPageStateText(): string {
+  const allShadowRoots = getAllShadowRoots();
+  const root = document.documentElement;
+  const rootAttributeTexts = [...root.attributes].map((attribute) => `${attribute.name}=${attribute.value}`);
+  const positionByElement = new Map<Element, number>();
+  const controlValueTexts: string[] = [];
+  const scrollOffsetTexts: string[] = [`window ${window.scrollX},${window.scrollY}`];
+
+  for (const scope of [document, ...allShadowRoots]) {
+    for (const element of scope.querySelectorAll('*')) {
+      const position = positionByElement.size;
+      positionByElement.set(element, position);
+
+      if (element instanceof HTMLInputElement) {
+        controlValueTexts.push(`${position} ${element.value} ${element.checked}`);
+      } else if (element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+        controlValueTexts.push(`${position} ${element.value}`);
+      }
+
+      if (element.scrollLeft !== 0 || element.scrollTop !== 0) {
+        scrollOffsetTexts.push(`${position} ${element.scrollLeft},${element.scrollTop}`);
+      }
+    }
+  }
+
+  const topLayerPositions = getTopLayerElements(allShadowRoots).map((element) => positionByElement.get(element));
+
+  return JSON.stringify([
+    rootAttributeTexts,
+    root.getHTML({ shadowRoots: allShadowRoots }),
+    controlValueTexts,
+    topLayerPositions,
+    scrollOffsetTexts,
+  ]);
+}
+
 if (!globalThis.__pxtree) {
   installAttachShadowHook();
-  globalThis.__pxtree = { measurePage, settlePage, revealByScrolling, getFontSampleElements, getFontRequests };
+  globalThis.__pxtree = { measurePage, settlePage, revealByScrolling, getFontSampleElements, getFontRequests, getPageStateText };
 }

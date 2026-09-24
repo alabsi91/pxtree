@@ -22,9 +22,9 @@ Do not bother when:
 - the page is a big data table and you need all of it: about 1300 tokens, more than a screenshot
 
 Long sessions:
-- Start with `--report summary` (facts, since last run and findings, no tree), then on a big page `--report findings` (only the tree lines with findings, under their ancestors' names).
-- Drill into one area with `--element '<selector>'`.
+- Start with `--report summary` (facts, since last run and findings, no tree), then on a big page `--report findings` (only the tree lines with findings, under their ancestors' names), then drill into one area with `--element '<selector>'`.
 - After a fix, verify it with `--report changes`: only the facts line and what changed since the last run.
+- To prototype a fix with `--script "await page.addStyleTag(…)"`, give it and a plain baseline run the same `--diff-key base`, so since last run compares them.
 - Add `--aria` when you check labels, roles or reading order.
 - Take one `--report none --screenshot shot.png` at the end, only if the text leaves a doubt.
 - Never paste the tool output to the user.
@@ -74,18 +74,18 @@ Findings are facts, not verdicts. Every `[!! ...]` is a measurement of what was 
 --channel chrome                use an installed browser
 --no-reveal                     skip the scroll pass that fires lazy-load and reveal-on-scroll
 --no-diff                       skip the since-last-run comparison
+--diff-key base                 since last run keys on this name instead of script and wait: a --script fix compares with a plain run of the same key
 
 Names, roles and labels are the aria tree's job. Sizes and positions are the measurement's. Add --aria when you check accessible names, roles, states, labels, reading order or what a screen reader gets. It carries no geometry.
 One call can hold all three: `--report summary --aria --screenshot shot.png`. `--report none --aria` is the aria tree alone, `--report none --screenshot shot.png` a pure screenshot. With --no-diff too, `none` skips the measurement and the facts line says `not measured`.
 
 ## Output, per viewport and scheme
 
-Line 1, facts: `1280x800 light dpr 1 ltr scroll 0/1450 page 1280x2250 painted to 2210` = viewport, scheme, dpr, direction (`rtl (start is right)`), scroll y/max, document size, lowest painted pixel. Then page facts when true: `status 404`, `redirected to <url>`, `sideways 14 by a.more` (page scrolls sideways by 14, the widest `past viewport` element causes it), `scroll locked`, `window does not scroll, main scrolls y 2400 in 800` (an app shell: scroll inside main with --scroll '<selector>'), `modal dialog#x`, `still moving div.x` (never settled), `font "Inter" not used, drew Arial` (a web font of the page did not draw the text), `font failed Inter`, `coverage sampled partly`, `stopped at 20000 elements`, `screenshot shot.png 1280x800`.
-`since last run:` changes against the previous run with the same url, size, scheme, scroll and script, in document order. `~` changed, `+` new, `-` gone. `~ 12 boxes from body>main>section down moved 44 down`: boxes that only moved, all by the same amount. `findings gone: text overflows end 30`: a finding that went away.
-`summary:` each finding once, with its amount range, `×count` and up to three element names. A bare tag gets its nearest uniquely named ancestor in front: `div.footer-legal li`.
-A second scheme whose tree matches the first except for findings and colors prints `tree: same as light, differences:` and only the lines whose findings differ.
-`across runs:` findings that only some runs have. Absent when every run has the same findings.
-`aria:` with --aria, after the report: Playwright's aria snapshot as YAML, taken in the measured state (after --script, --scroll and --wait). Roles, names, states like `[checked]` or `[expanded]`, text, in reading order. `aria .item match 2:` heads each of several --element matches. `aria: same as light` when a second scheme has the same tree.
+Line 1, facts: `1280x800 light dpr 1 ltr scroll 0/1450 page 1280x2250 painted to 2210` = viewport, scheme, dpr, direction (`rtl (start is right)`), scroll y/max, document size, lowest painted pixel. Then page facts when true: `status 404`, `redirected to <url>`, `sideways 14 by a.more` (page scrolls sideways by 14, the widest `past viewport` element causes it), `scroll locked`, `window does not scroll, main scrolls y 2400 in 800` (an app shell: scroll inside main with --scroll '<selector>'), `page unchanged by script` (DOM, control values, top layer and scroll offsets are as before the script; a CSS :hover or :focus state does not count), `top layer: dialog#x modal, div.menu popover`, `still moving div.x` (never settled), `font "Inter" not used, drew Arial` (a web font of the page did not draw the text), `font failed Inter`, `coverage sampled partly`, `stopped at 20000 elements`, `screenshot shot.png 1280x800`.
+`since last run:` changes against the previous run with the same url, size, scheme, scroll, script and wait (or the same --diff-key), in document order. `~` changed, `+` new, `-` gone. `~ 12 boxes from body>main>section down moved 44 down`: boxes that only moved, all by the same amount. `findings gone: text overflows end 30`: a finding that went away.
+`summary:` each finding once, with its amount range, `×count` and up to three element names. A bare tag gets its nearest uniquely named ancestor in front: `div.footer-legal li`. While a modal is open, the inert page behind it has no findings and the summary ends with `3 findings behind the modal not listed` (--element on something behind it prints its findings).
+A second scheme whose tree matches the first except for findings and colors prints `tree: same as light, differences:` and only the lines whose findings differ, and `summary: same as light` when its summary is the same. Runs at other viewports print in full, one block each.
+`aria:` with --aria, after the report: Playwright's aria snapshot as YAML, taken in the measured state (after --script, --scroll and --wait). Roles, names, states like `[checked]` or `[expanded]`, text, in reading order. `aria: none` when it is empty. `aria .item match 2 of 3:` heads each of several --element matches, `none (not rendered)` or `none (not painted)` says why one is empty. `aria: same as light` when a second scheme has the same tree.
 Tree lines: `name "text" WxH @x,y [tags][!! findings] ×N` (bracket groups follow each other with no space)
 - name is tag#id.class.class (generated ids and hashed or utility classes dropped); "text" is the start of its own text.
 - WxH is the border box after transforms. @x,y is from the parent's content box, x from the start edge (the right edge in rtl). No @ means 0,0.
@@ -105,7 +105,7 @@ Tree lines: `name "text" WxH @x,y [tags][!! findings] ×N` (bracket groups follo
 [animating]                      a running, paused infinite, or scroll-driven animation targets it
 [role carousel] [role marquee]   from role or aria-roledescription
 [not painted: opacity 0]         opacity 0, children not walked
-[not painted: visibility hidden] children can still show
+[not painted: visibility hidden] paints nothing and has no findings, wherever it sits; children can still show
 [content skipped]                content-visibility skipped its content
 [sr-only]                        screen-reader-only box: clipped content at most 1 px on an axis, or clipped away; its text counts nowhere
 [clipped out by div.x]           fully outside an ancestor's clip; text and controls get the finding instead
@@ -114,7 +114,7 @@ Tree lines: `name "text" WxH @x,y [tags][!! findings] ×N` (bracket groups follo
 [clips 5 of 8 children]          its overflow hidden or clip cuts 5 of its 8 children fully or partly
 [pad 16 8]                       padding in CSS shorthand order
 [gaps 24] [gaps across 16]       space between children stacked / side by side; `free 110 at end` is unused space; several values when they differ
-[text 16/24, 2 lines]            font size / line height px; `on image` when the background is unknown; `fill transparent` for gradient or transparent text; hex colors with --colors
+[text 16/24, 2 lines]            font size / line height px; `on image` when the background is unknown; `fill transparent` for gradient or transparent text; with --colors `#e6edf3 on #1e2530, contrast 13.0`
 [renders background, border-bottom, shadow]   what the box itself paints; also outline, image, control, ::before, ::after
 [shadow root] [shadow root closed] [slotted]   shadow host; light-DOM child drawn through a slot
 [over 100000 px]                 over 100000 px on one axis
@@ -127,7 +127,7 @@ Tree lines: `name "text" WxH @x,y [tags][!! findings] ×N` (bracket groups follo
 Each finding is a measurement that passed a threshold. The tool never guesses intent: a full-bleed section, an avatar stack, an open popover or a collapsed panel prints its numbers like anything else.
 
 clipped right 12 by div.panel      text or control cut by an ancestor's overflow, clip or clip-path (or by viewport), 1 px or more
-clipped out by div.panel           text, control or a box holding them, fully outside a non-scrolling clip
+clipped out by div.panel           text, control or a box holding them, fully outside a non-scrolling clip; what a scroll box can bring into view never gets either
 overflows parent end 14            in-flow box extends past its parent's border box; `start and end 24` when both sides match
 text overflows end 30              its own text ink extends past its box
 past viewport end 14               its box or text ink extends past the viewport's inline end, so the page scrolls sideways; on the box where it starts and on any box that sticks out of its own parent
@@ -135,15 +135,15 @@ covered top 24 by header.site      another element paints over it (checked insid
 overlaps div.badge 12x40           two sibling boxes with ink intersect by 2 px or more on both axes
 off center 3 down                  in a box with symmetric padding, the free space above and below its children's border boxes differs by 3 (margins count as offset); `off center 2 end` on the inline axis
 text off center 3 down             one text line: the space above its cap height and below its baseline differ by 3 or more
-a.button tops 312..328 across siblings   in a row of sibling cards, the same part (same tag at the same position) has tops from 312 to 328 px and shares no top, center or bottom line; `div.stat tops 0..6` is the cards themselves
-input.field starts 0..3 across siblings   in a column of stacked siblings, starts from 0 to 3 px with no shared start, center or end line; like tops, also for the same part inside each sibling
+a.button tops 312..328 across siblings   in a row of sibling cards, the same part (same tag at the same child position) shares no top, center or bottom line, in each card and in the row; 312..328 are the @y values the tree prints for it; `div.stat tops 0..6` is the cards themselves
+input.field starts 0..3 across siblings   in a column of stacked siblings, @x from 0 to 3 px with no shared start, center or end line; like tops, also for the same part inside each sibling
 12 wider than li.card              one sibling in a row is 12 wider than the width most siblings share
 16 taller than li.card             the same for height, also `10 shorter than li.card`
 gaps 16 16 24 16 between li.step   gaps between siblings, when one differs from the most common by 2 px or more
                                    siblings compare by tag plus the classes at least half of them carry, so `li.active` counts as an `li`
 text truncated ellipsis 40         also `text clamped 3 lines`, `text cut 40`
 contrast 2.8                       text contrast ratio below 4.5 (3 for large text)
-small target 20x20                 interactive element under 24 px, with another target inside its 24 px spacing circle (WCAG 2.5.8)
+small target 20x20                 interactive element under 24 px, with another target inside its 24 px spacing circle (WCAG 2.5.8); fully covered, pointer-events none and inert neighbors do not count
 image not loaded                   img with a src finished loading with no pixels
 image aspect 1.30 of natural       object-fit fill draws it at 1.30 times its natural aspect ratio
 image upscaled 2.1                 raster drawn at 2.1 times its natural pixels

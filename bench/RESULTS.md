@@ -27,7 +27,7 @@ Previous run, before those fixes: found 36 of 47 (77%), noise 1.4 per buggy page
 
 - bugs planted 47, found 42, recall 89%
 - noise lines per buggy page 1.5, per clean page 3.3
-- runs 33, median wall time 483 ms, median output 33 lines, median approx tokens 510
+- runs 33, median wall time 476 ms, median output 33 lines, median approx tokens 510
 
 ## Per page
 
@@ -35,23 +35,23 @@ Times, lines and tokens are per run, in the order of the runs column. Tokens are
 
 | page | runs | bugs | found | missed | noise | ms | lines | tokens |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| blog | default, mobile, dark | 4 | 4 | 0 | 1 | 469 / 538 / 495 | 32 / 33 / 33 | 490 / 510 / 506 |
-| carousel | default | 3 | 3 | 0 | 2 | 498 | 29 | 462 |
-| chat | default, mobile | 4 | 4 | 0 | 5 | 471 / 461 | 47 / 50 | 922 / 1129 |
-| clean-carousel (clean) | default, mobile | 0 | 0 | 0 | 7 | 453 / 457 | 34 / 33 | 567 / 541 |
-| clean-hero (clean) | default, mobile | 0 | 0 | 0 | 2 | 500 / 471 | 25 / 24 | 354 / 328 |
-| clean-menu (clean) | default, mobile | 0 | 0 | 0 | 1 | 479 / 485 | 22 / 18 | 318 / 279 |
-| dashboard | default, mobile | 4 | 3 | 1 | 1 | 454 / 493 | 39 / 36 | 590 / 526 |
-| grid-areas | default, mobile | 3 | 3 | 0 | 0 | 474 / 547 | 34 / 30 | 521 / 505 |
-| hero | default, mobile | 3 | 2 | 1 | 2 | 527 / 494 | 27 / 32 | 401 / 468 |
-| modal | default, open | 3 | 2 | 1 | 2 | 408 / 535 | 11 / 34 | 167 / 702 |
-| nav-dropdown | default, mobile, menu | 3 | 3 | 0 | 5 | 415 / 437 / 790 | 17 / 16 / 23 | 286 / 261 / 385 |
-| pricing | default, mobile | 3 | 2 | 1 | 2 | 503 / 513 | 44 / 27 | 633 / 399 |
-| products | default | 4 | 3 | 1 | 1 | 465 | 46 | 786 |
-| rtl | default | 3 | 3 | 0 | 0 | 474 | 40 | 683 |
-| settings | default, dialog | 3 | 3 | 0 | 0 | 461 / 524 | 38 / 13 | 597 / 211 |
-| sticky | default, pricing | 3 | 3 | 0 | 0 | 522 / 530 | 47 / 48 | 641 / 673 |
-| table | default, mobile | 4 | 4 | 0 | 0 | 483 / 476 | 67 / 68 | 1019 / 1047 |
+| blog | default, mobile, dark | 4 | 4 | 0 | 1 | 480 / 520 / 475 | 32 / 33 / 33 | 490 / 510 / 506 |
+| carousel | default | 3 | 3 | 0 | 2 | 483 | 29 | 462 |
+| chat | default, mobile | 4 | 4 | 0 | 5 | 470 / 480 | 47 / 49 | 922 / 1115 |
+| clean-carousel (clean) | default, mobile | 0 | 0 | 0 | 7 | 452 / 454 | 34 / 33 | 567 / 541 |
+| clean-hero (clean) | default, mobile | 0 | 0 | 0 | 2 | 476 / 488 | 25 / 24 | 354 / 328 |
+| clean-menu (clean) | default, mobile | 0 | 0 | 0 | 1 | 488 / 487 | 22 / 18 | 317 / 278 |
+| dashboard | default, mobile | 4 | 3 | 1 | 1 | 430 / 470 | 39 / 36 | 590 / 526 |
+| grid-areas | default, mobile | 3 | 3 | 0 | 0 | 473 / 554 | 34 / 30 | 521 / 505 |
+| hero | default, mobile | 3 | 2 | 1 | 2 | 474 / 478 | 27 / 32 | 401 / 468 |
+| modal | default, open | 3 | 2 | 1 | 2 | 385 / 495 | 11 / 34 | 167 / 702 |
+| nav-dropdown | default, mobile, menu | 3 | 3 | 0 | 5 | 424 / 445 / 759 | 17 / 16 / 23 | 286 / 261 / 391 |
+| pricing | default, mobile | 3 | 2 | 1 | 2 | 476 / 526 | 44 / 27 | 633 / 399 |
+| products | default | 4 | 3 | 1 | 1 | 471 | 46 | 786 |
+| rtl | default | 3 | 3 | 0 | 0 | 458 | 40 | 683 |
+| settings | default, dialog | 3 | 3 | 0 | 0 | 487 / 524 | 38 / 12 | 597 / 204 |
+| sticky | default, pricing | 3 | 3 | 0 | 0 | 519 / 502 | 47 / 48 | 641 / 673 |
+| table | default, mobile | 4 | 4 | 0 | 0 | 474 / 461 | 67 / 68 | 1019 / 1047 |
 
 ## Per bug kind
 
@@ -108,7 +108,7 @@ Times, lines and tokens are per run, in the order of the runs column. Tokens are
 | pricing | sibling misalignment | default | no | yes | Team button clearly lower |
 | pricing | contrast | default | yes: contrast 1.9, text #b4b8c0: p.billing-note | yes | note is visibly faint |
 | pricing | overflow at 390 | mobile | yes: past viewport end 5 ×3: article.plan, article.plan.featured | yes | seen only as a card with no side margin and cut borders, the 5px overflow is not measurable by eye |
-| products | sibling misalignment | default | yes: button.add-to-cart tops 247..277 across siblings: div.grid | yes | buttons at three heights |
+| products | sibling misalignment | default | yes: button.add-to-cart tops 232..262 across siblings: div.grid | yes | buttons at three heights |
 | products | image distorted | default | yes: image aspect 1.14 of natural ×4: div.grid img | yes | seen only because the test image has a circle that became an ellipse |
 | products | clipped by overflow hidden | default | yes: text cut 18: h2.name | no | the cut title reads as complete, no ellipsis to hint at it |
 | products | tap target | default | no | no | look like normal small overlay icons |
@@ -197,7 +197,7 @@ Every summary line that matches no planted bug, once per page, with the runs tha
 - nav-dropdown [default, menu] `24 shorter than li: ul.nav-links li` : not judged yet
 - nav-dropdown [mobile] `clipped top 1 by header.site-header ×3: li.has-menu a, ul.nav-links a` : true but useless. Same 1px at 390.
 - nav-dropdown [mobile] `clipped bottom 1 by header.site-header ×3: li.has-menu a, ul.nav-links a` : true but useless. Same 1px at 390.
-- pricing [default] `div.price tops 129..151 across siblings: section.plans` : true and useful. This is the planted Team-card misalignment. The longer blurb pushes the price down first, and the button moves with it. The expectation names a.cta, the last part that moves, so it scores as a miss.
+- pricing [default] `div.price tops 100..122 across siblings: section.plans` : true and useful. This is the planted Team-card misalignment. The longer blurb pushes the price down first, and the button moves with it. The expectation names a.cta, the last part that moves, so it scores as a miss.
 - pricing [mobile] `overflows parent start 5 ×3: article.plan, article.plan.featured` : true and useful. The planted 390 plan-card overflow, the left side of it.
 - products [default] `15..30 taller than div.product ×2: div.product` : not judged yet
 

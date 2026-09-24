@@ -1,4 +1,4 @@
-import type { Analysis, Finding, FindingKind, MeasuredNode, PageMeasurement, Rect } from '../types.ts';
+import type { Analysis, Finding, FindingKind, MeasuredNode, NodeLayout, PageMeasurement, Rect } from '../types.ts';
 import {
   getBottom,
   getChildIndexesByParent,
@@ -54,6 +54,7 @@ const targetGridCellSize = 64;
 interface AnalysisContext {
   page: PageMeasurement;
   nodes: MeasuredNode[];
+  layouts: NodeLayout[];
   childIndexesByParent: number[][];
   siblingGroupNames: string[];
   isInsideHorizontalScrollByIndex: boolean[];
@@ -232,6 +233,7 @@ function createAnalysisContext(page: PageMeasurement): AnalysisContext {
   return {
     page,
     nodes,
+    layouts: getNodeLayouts(page),
     childIndexesByParent,
     siblingGroupNames: getSiblingGroupNames(page, childIndexesByParent),
     isInsideHorizontalScrollByIndex,
@@ -803,12 +805,13 @@ function getSiblingGroupColumns(childrenByGroupName: Map<string, MeasuredNode[]>
 }
 
 /**
- * Shown descendants by their relative path below `member`. Each step is the tag and its position among same-tag siblings,
- * like `ul[0]>li[2]`. A `.button-primary` in one card then pairs with a `.button-secondary` in the next.
+ * Shown descendants by their relative path below `member`. Each step is the tag and its position among the parent's
+ * children, like `ul[1]>li[2]`. Two descendants pair only when every step has the same tag at the same position. A
+ * `.button-primary` in one card then pairs with a `.button-secondary` in the next, and never with a divider.
  */
 function getDescendantIndexByRelativePath(nodes: MeasuredNode[], member: MeasuredNode): Map<string, number> {
   const pathByIndex = new Map<number, string>([[member.index, '']]);
-  const sameTagCountsByParent = new Map<number, Map<string, number>>();
+  const childCountByParent = new Map<number, number>();
   const descendantIndexByPath = new Map<string, number>();
   const lastIndex = Math.min(member.subtreeEnd, member.index + maxAlignmentDescendantsPerMember);
 
@@ -817,12 +820,10 @@ function getDescendantIndexByRelativePath(nodes: MeasuredNode[], member: Measure
     const parentPath = pathByIndex.get(descendant.parentIndex);
     if (parentPath === undefined) continue;
 
-    const sameTagCounts = sameTagCountsByParent.get(descendant.parentIndex) ?? new Map<string, number>();
-    const tagPosition = sameTagCounts.get(descendant.tag) ?? 0;
-    sameTagCounts.set(descendant.tag, tagPosition + 1);
-    sameTagCountsByParent.set(descendant.parentIndex, sameTagCounts);
+    const childPosition = childCountByParent.get(descendant.parentIndex) ?? 0;
+    childCountByParent.set(descendant.parentIndex, childPosition + 1);
 
-    const step = `${descendant.tag}[${tagPosition}]`;
+    const step = `${descendant.tag}[${childPosition}]`;
     const path = parentPath === '' ? step : `${parentPath}>${step}`;
     pathByIndex.set(index, path);
 
@@ -834,19 +835,25 @@ function getDescendantIndexByRelativePath(nodes: MeasuredNode[], member: Measure
   return descendantIndexByPath;
 }
 
-/** Tops relative to each reference top, when the tops, the vertical centers and the bottoms all spread by 2 px or more. Otherwise null. */
-function getSpreadTops(nodes: MeasuredNode[], indexes: number[], referenceTops: number[]): { min: number; max: number } | null {
+/** True when the tops, the vertical centers and the bottoms, taken from each reference top, all spread by 2 px or more. */
+function hasSpreadTops(nodes: MeasuredNode[], indexes: number[], referenceTops: number[]): boolean {
   const nodeRects = indexes.map((index) => nodes[index].rect);
   const topSpread = getSpread(nodeRects.map((rect, position) => rect.y - referenceTops[position]));
   const centerSpread = getSpread(nodeRects.map((rect, position) => rect.y + rect.height / 2 - referenceTops[position]));
   const bottomSpread = getSpread(nodeRects.map((rect, position) => getBottom(rect) - referenceTops[position]));
-  const isSharingALine = [topSpread, centerSpread, bottomSpread].some((spread) => spread.max - spread.min < 2);
 
-  return isSharingALine ? null : topSpread;
+  return [topSpread, centerSpread, bottomSpread].every((spread) => spread.max - spread.min >= 2);
 }
 
-function createTopsAcrossSiblingsFinding(parent: MeasuredNode, name: string, topSpread: { min: number; max: number }): Finding {
-  const topRangeText = `${roundPixels(topSpread.min)}..${roundPixels(topSpread.max)}`;
+/** `min..max` of the printed `@x,y` values, so the numbers can be found in the tree. */
+function getPrintedRangeText(printedValues: number[]): string {
+  const roundedValues = printedValues.map(roundPixels);
+
+  return `${Math.min(...roundedValues)}..${Math.max(...roundedValues)}`;
+}
+
+function createTopsAcrossSiblingsFinding(context: AnalysisContext, parent: MeasuredNode, name: string, indexes: number[]): Finding {
+  const topRangeText = getPrintedRangeText(indexes.map((index) => context.layouts[index].y));
 
   return createFinding({ kind: 'tops-across-siblings', nodeIndex: parent.index, template: `${name} tops ${topRangeText} across siblings` });
 }
@@ -854,15 +861,17 @@ function createTopsAcrossSiblingsFinding(parent: MeasuredNode, name: string, top
 /**
  * Up to two findings per row. One is for the members' own tops in the parent's content box. The other is for the first
  * descendant whose tops spread across the members. Later descendants usually move with that first one.
+ * A descendant spreads when it does so both from each member's top and in the row. The first keeps a pushed down card
+ * from repeating on its content. The second keeps parts that line up on screen quiet when the members differ in height.
+ * The printed range is each node's own `@y`, as the tree prints it.
  */
 function getTopsAcrossSiblingsFindings(context: AnalysisContext, parent: MeasuredNode, row: MeasuredNode[]): Finding[] {
   const findings: Finding[] = [];
   const members = row.slice(0, maxAlignmentGroupMembers);
   const memberIndexes = members.map((member) => member.index);
   const parentContentTop = getContentBox(parent).y;
-  const memberTopSpread = getSpreadTops(context.nodes, memberIndexes, members.map(() => parentContentTop));
-  if (memberTopSpread !== null) {
-    findings.push(createTopsAcrossSiblingsFinding(parent, context.siblingGroupNames[members[0].index], memberTopSpread));
+  if (hasSpreadTops(context.nodes, memberIndexes, members.map(() => parentContentTop))) {
+    findings.push(createTopsAcrossSiblingsFinding(context, parent, context.siblingGroupNames[members[0].index], memberIndexes));
   }
 
   const memberTops = members.map((member) => member.rect.y);
@@ -872,10 +881,11 @@ function getTopsAcrossSiblingsFindings(context: AnalysisContext, parent: Measure
     const descendantIndexes = descendantIndexByPathPerMember.map((descendantIndexByPath) => descendantIndexByPath.get(path) ?? -1);
     if (descendantIndexes.some((index) => index < 0)) continue;
 
-    const descendantTopSpread = getSpreadTops(context.nodes, descendantIndexes, memberTops);
-    if (descendantTopSpread === null) continue;
+    const isSpreadInMembers = hasSpreadTops(context.nodes, descendantIndexes, memberTops);
+    const isSpreadInRow = hasSpreadTops(context.nodes, descendantIndexes, members.map(() => parentContentTop));
+    if (!isSpreadInMembers || !isSpreadInRow) continue;
 
-    findings.push(createTopsAcrossSiblingsFinding(parent, context.nodes[firstDescendantIndex].name, descendantTopSpread));
+    findings.push(createTopsAcrossSiblingsFinding(context, parent, context.nodes[firstDescendantIndex].name, descendantIndexes));
     break;
   }
 
@@ -889,28 +899,22 @@ function getInlineLines(rect: Rect, referenceStart: number, direction: 'ltr' | '
   return { start, center: start + rect.width / 2, end: start + rect.width };
 }
 
-/** Starts relative to each reference start, when the starts, the centers and the ends all spread by 2 px or more. Otherwise null. */
-function getSpreadStarts(
-  nodes: MeasuredNode[],
-  indexes: number[],
-  referenceStarts: number[],
-  direction: 'ltr' | 'rtl',
-): { min: number; max: number } | null {
+/** True when the starts, the centers and the ends, taken from each reference start, all spread by 2 px or more. */
+function hasSpreadStarts(nodes: MeasuredNode[], indexes: number[], referenceStarts: number[], direction: 'ltr' | 'rtl'): boolean {
   const inlineLines = indexes.map((index, position) => getInlineLines(nodes[index].rect, referenceStarts[position], direction));
   const startSpread = getSpread(inlineLines.map((lines) => lines.start));
   const centerSpread = getSpread(inlineLines.map((lines) => lines.center));
   const endSpread = getSpread(inlineLines.map((lines) => lines.end));
-  const isSharingALine = [startSpread, centerSpread, endSpread].some((spread) => spread.max - spread.min < 2);
 
-  return isSharingALine ? null : startSpread;
+  return [startSpread, centerSpread, endSpread].every((spread) => spread.max - spread.min >= 2);
 }
 
 function getInlineStartEdge(rect: Rect, direction: 'ltr' | 'rtl'): number {
   return direction === 'rtl' ? getRight(rect) : rect.x;
 }
 
-function createStartsAcrossSiblingsFinding(parent: MeasuredNode, name: string, startSpread: { min: number; max: number }): Finding {
-  const startRangeText = `${roundPixels(startSpread.min)}..${roundPixels(startSpread.max)}`;
+function createStartsAcrossSiblingsFinding(context: AnalysisContext, parent: MeasuredNode, name: string, indexes: number[]): Finding {
+  const startRangeText = getPrintedRangeText(indexes.map((index) => context.layouts[index].x));
 
   return createFinding({ kind: 'starts-across-siblings', nodeIndex: parent.index, template: `${name} starts ${startRangeText} across siblings` });
 }
@@ -927,9 +931,8 @@ function getStartsAcrossSiblingsFindings(context: AnalysisContext, parent: Measu
   const members = column.slice(0, maxAlignmentGroupMembers);
   const memberIndexes = members.map((member) => member.index);
   const parentContentStart = getInlineStartEdge(getContentBox(parent), direction);
-  const memberStartSpread = getSpreadStarts(context.nodes, memberIndexes, members.map(() => parentContentStart), direction);
-  if (memberStartSpread !== null) {
-    findings.push(createStartsAcrossSiblingsFinding(parent, context.siblingGroupNames[members[0].index], memberStartSpread));
+  if (hasSpreadStarts(context.nodes, memberIndexes, members.map(() => parentContentStart), direction)) {
+    findings.push(createStartsAcrossSiblingsFinding(context, parent, context.siblingGroupNames[members[0].index], memberIndexes));
   }
 
   const memberStarts = members.map((member) => getInlineStartEdge(member.rect, direction));
@@ -945,10 +948,11 @@ function getStartsAcrossSiblingsFindings(context: AnalysisContext, parent: Measu
     const isEveryDescendantPlaced = descendantIndexes.every((index) => !isInlineBox(context.nodes[index]));
     if (!isEveryDescendantPlaced) continue;
 
-    const descendantStartSpread = getSpreadStarts(context.nodes, descendantIndexes, memberStarts, direction);
-    if (descendantStartSpread === null) continue;
+    const isSpreadInMembers = hasSpreadStarts(context.nodes, descendantIndexes, memberStarts, direction);
+    const isSpreadInColumn = hasSpreadStarts(context.nodes, descendantIndexes, members.map(() => parentContentStart), direction);
+    if (!isSpreadInMembers || !isSpreadInColumn) continue;
 
-    findings.push(createStartsAcrossSiblingsFinding(parent, context.nodes[firstDescendantIndex].name, descendantStartSpread));
+    findings.push(createStartsAcrossSiblingsFinding(context, parent, context.nodes[firstDescendantIndex].name, descendantIndexes));
     break;
   }
 
@@ -1138,6 +1142,11 @@ export function getContrastRatio(firstHexColor: string, secondHexColor: string):
   return (Math.max(firstLuminance, secondLuminance) + 0.05) / (Math.min(firstLuminance, secondLuminance) + 0.05);
 }
 
+/** One decimal, rounded down, so a failing ratio never prints as the passing value. */
+export function getPrintedContrastRatio(ratio: number): string {
+  return (Math.floor(ratio * 10) / 10).toFixed(1);
+}
+
 function getContrastFindings(context: AnalysisContext): Finding[] {
   const findings: Finding[] = [];
 
@@ -1149,8 +1158,7 @@ function getContrastFindings(context: AnalysisContext): Finding[] {
     const minimumRatio = textInfo.isLarge ? 3 : 4.5;
     if (ratio >= minimumRatio) continue;
 
-    // Rounding down keeps a failing ratio from printing as the passing value.
-    const printedAmount = (Math.floor(ratio * 10) / 10).toFixed(1);
+    const printedAmount = getPrintedContrastRatio(ratio);
 
     findings.push(
       createFinding({
@@ -1209,7 +1217,11 @@ function createTargetGrid(targets: MeasuredNode[]): Map<string, MeasuredNode[]> 
   return targetsByCell;
 }
 
-/** WCAG 2.5.8 spacing. A 24 px circle on the target's center touches no other target and no other undersized target's circle. */
+/**
+ * WCAG 2.5.8 spacing. A 24 px circle on the target's center touches no other target and no other undersized target's circle.
+ * A target that is not inert ignores inert neighbors, because nothing can hit them. An inert target, behind a modal,
+ * still compares with its own neighbors, so an element match there prints its finding.
+ */
 function isSpacedTarget(target: MeasuredNode, targetsByCell: Map<string, MeasuredNode[]>, undersizedIndexes: Set<number>): boolean {
   const center = getCenter(target.rect);
   const firstColumn = Math.floor((center.x - 2 * targetSpacingRadius) / targetGridCellSize);
@@ -1220,7 +1232,8 @@ function isSpacedTarget(target: MeasuredNode, targetsByCell: Map<string, Measure
   for (let column = firstColumn; column <= lastColumn; column++) {
     for (let row = firstRow; row <= lastRow; row++) {
       for (const neighbor of targetsByCell.get(`${column},${row}`) ?? []) {
-        if (neighbor === target || isNested(neighbor, target)) continue;
+        const isUnreachableInertNeighbor = neighbor.isInert && !target.isInert;
+        if (neighbor === target || isNested(neighbor, target) || isUnreachableInertNeighbor) continue;
 
         const neighborCenter = getCenter(neighbor.rect);
         const isTouchingNeighbor = getDistanceToRect(center, neighbor.rect) < targetSpacingRadius;
@@ -1237,9 +1250,20 @@ function isSpacedTarget(target: MeasuredNode, targetsByCell: Map<string, Measure
   return true;
 }
 
+/** Coverage sampling found something painted over every sample of its ink. */
+function isFullyCovered(node: MeasuredNode): boolean {
+  return node.coverage !== null && node.coverage.sampleCount > 0 && node.coverage.coveredSampleCount === node.coverage.sampleCount;
+}
+
+/** A target that a pointer can reach: not `pointer-events: none` and not covered on every sample. Inert targets are checked per pair. */
+function isHittableTarget(node: MeasuredNode): boolean {
+  return !node.isPointerEventsNone && !isFullyCovered(node);
+}
+
 function getSmallTargetFindings(context: AnalysisContext): Finding[] {
   const findings: Finding[] = [];
   const targets = context.nodes.filter((node) => isShown(node) && node.isInteractive);
+  const hittableTargets = targets.filter(isHittableTarget);
 
   const undersizedTargets = targets.filter((target) => {
     const isLinkInText = target.tag === 'a' && target.isInlineInText;
@@ -1249,7 +1273,7 @@ function getSmallTargetFindings(context: AnalysisContext): Finding[] {
     return !isLinkInText && !hasLargeLabel && !isLargeEnoughTarget(target.rect);
   });
 
-  const targetsByCell = createTargetGrid(targets);
+  const targetsByCell = createTargetGrid(hittableTargets);
   const undersizedIndexes = new Set(undersizedTargets.map((target) => target.index));
 
   for (const target of undersizedTargets) {
@@ -1402,5 +1426,22 @@ export function analyze(page: PageMeasurement): Analysis {
   const getKindPosition = (finding: Finding) => findingKindOrder.indexOf(finding.kind);
   findings.sort((first, second) => first.nodeIndex - second.nodeIndex || getKindPosition(first) - getKindPosition(second));
 
-  return { layouts: getNodeLayouts(page), findings };
+  const listedFindings = findings.filter((finding) => !isHiddenBehindModal(page, finding.nodeIndex));
+
+  return { layouts: context.layouts, findings: listedFindings, behindModalFindingCount: findings.length - listedFindings.length };
+}
+
+/** Inert behind an open modal, and not inside an element match. An element match is an explicit request, so it keeps its findings. */
+function isHiddenBehindModal(page: PageMeasurement, nodeIndex: number): boolean {
+  const node = page.nodes[nodeIndex];
+  if (page.modalIndex === null || !node.isInert) {
+    return false;
+  }
+
+  const isInsideModal = page.modalIndex <= nodeIndex && nodeIndex <= page.nodes[page.modalIndex].subtreeEnd;
+  const isInsideElementMatch = (page.element?.matchedIndexes ?? []).some(
+    (matchedIndex) => matchedIndex <= nodeIndex && nodeIndex <= page.nodes[matchedIndex].subtreeEnd,
+  );
+
+  return !isInsideModal && !isInsideElementMatch;
 }

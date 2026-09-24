@@ -89,7 +89,7 @@ const allBorders: Partial<Ink> = { borderSides: ['top', 'right', 'bottom', 'left
 
 function createPage(spec: PageSpec): { page: PageMeasurement; analysis: Analysis } {
   const nodes: MeasuredNode[] = [];
-  const analysis: Analysis = { layouts: [], findings: [] };
+  const analysis: Analysis = { layouts: [], findings: [], behindModalFindingCount: 0 };
   const topLayerIndexes: number[] = [];
   const pageDirection = spec.page?.direction ?? 'ltr';
 
@@ -141,6 +141,7 @@ function createPage(spec: PageSpec): { page: PageMeasurement; analysis: Analysis
       isDisabled: false,
       isInlineInText: false,
       isInert: false,
+      isPointerEventsNone: false,
       topLayer: null,
       shadow: null,
       isSlotted: false,
@@ -223,6 +224,8 @@ function createRun(page: PageMeasurement, analysis: Analysis, overrides: Partial
     screenshotPath: null,
     shouldIncludeChildren: true,
     ariaSnapshots: null,
+    ariaMatchVisibilities: null,
+    isPageUnchangedByScript: false,
     redirectedUrl: null,
     fontFallbacks: [],
     ...overrides,
@@ -568,7 +571,7 @@ function createModalPageSpec(): PageSpec {
 }
 
 describe('design examples', () => {
-  test('5.2 simple page', () => {
+  test('simple page example',() => {
     const { page, analysis } = createPage(createSimplePageSpec());
     const previousSnapshot = createSnapshotWith(page, analysis, (snapshot) => {
       snapshot.nodes['body>main>section#pricing>ul.plans>li.plan[0]>span.plan-note'].width = 261;
@@ -608,7 +611,7 @@ body 1280x2250
     assert.equal(format({ target: page.url, runs: [run], error: null }), expected);
   });
 
-  test('5.3 rtl page, mobile, dark', () => {
+  test('rtl mobile dark example',() => {
     const { page, analysis } = createPage(createRtlPageSpec());
     const previousSnapshot = createSnapshotWith(page, analysis, (snapshot) => {
       snapshot.nodes['body>main>ul.cards>li.card[1]'].height = 212;
@@ -643,13 +646,13 @@ body 390x2054
     assert.equal(format({ target: page.url, runs: [run], error: null }), expected);
   });
 
-  test('5.4 modal dialog open', () => {
+  test('modal dialog example',() => {
     const { page, analysis } = createPage(createModalPageSpec());
     const previousSnapshot = createSnapshotWith(page, analysis, (snapshot) => {
       snapshot.nodes['dialog#confirm-delete>div.actions>button.danger'].width = 96;
     });
     const run = createRun(page, analysis, { previousSnapshot, isCacheEnabled: true });
-    const expected = `1280x800 light dpr 1 ltr scroll 0/940 page 1280x1740 painted to 1702 scroll locked modal dialog#confirm-delete
+    const expected = `1280x800 light dpr 1 ltr scroll 0/940 page 1280x1740 painted to 1702 scroll locked top layer: dialog#confirm-delete modal
 since last run: 1 changed
   ~ dialog#confirm-delete>div.actions>button.danger 104x40 was 96x40
 summary: 1 finding
@@ -835,7 +838,24 @@ describe('tags', () => {
     };
 
     assert.equal(formatNode(nodeSpec), 'p "Hi" 100x20 [text 16/20][renders background, border]');
-    assert.equal(formatNode(nodeSpec, true), 'p "Hi" 100x20 [text 16/20, #e6edf3 on #1e2530][renders background #1e2530, border #3a4250]');
+    assert.equal(
+      formatNode(nodeSpec, true),
+      'p "Hi" 100x20 [text 16/20, #e6edf3 on #1e2530, contrast 13.0][renders background #1e2530, border #3a4250]',
+    );
+  });
+
+  test('with colors a failing contrast prints its ratio rounded down, and a transparent fill prints none', () => {
+    const failingSpec: NodeSpec = { name: 'p', text: 'Hi', size: [100, 20], textInfo: { ...createTextSpec(16, 20), color: '#777777', background: '#ffffff' } };
+    const transparentSpec: NodeSpec = { name: 'p', text: 'Hi', size: [100, 20], textInfo: { ...createTextSpec(16, 20), color: null } };
+
+    assert.equal(formatNode(failingSpec, true), 'p "Hi" 100x20 [text 16/20, #777777 on #ffffff, contrast 4.4]');
+    assert.doesNotMatch(formatNode(transparentSpec, true), /contrast/);
+  });
+
+  test('a node that is not painted prints no renders tag', () => {
+    const line = formatNode({ name: 'div.panel', size: [72, 800], node: { visibility: 'unpainted-visibility' }, ink: { background: '#ffffff', hasShadow: true } });
+
+    assert.equal(line, 'div.panel 72x800 [not painted: visibility hidden]');
   });
 
   test('pseudo ink names the pseudo-element that paints', () => {
@@ -1196,19 +1216,29 @@ describe('aria section', () => {
     assert.deepEqual(reportLines.slice(ariaPosition + 1), pageAriaSnapshot.split('\n'));
   });
 
-  test('prints nothing for an empty snapshot', () => {
-    const reportLines = formatRuns([{ ariaSnapshots: [''] }]);
+  test('prints aria: none for an empty snapshot', () => {
+    const reportLines = formatRuns([{ ariaSnapshots: [''], ariaMatchVisibilities: ['shown'] }]);
 
-    assert.ok(!reportLines.some((line) => line.startsWith('aria')), reportLines.join('\n'));
+    assert.equal(reportLines.at(-1), 'aria: none');
   });
 
-  test('heads each element match when there are several and skips empty ones', () => {
+  test('heads each element match with its count, and says why an empty one is empty', () => {
     const { page, analysis } = createPage({ roots: [{ name: 'body', size: [1280, 800] }] });
-    const pageWithElement = { ...page, element: { selector: 'li', matchedIndexes: [0], matchedCount: 3 } };
-    const run = createRun(pageWithElement, analysis, { ariaSnapshots: ['- listitem: Profile', '', '- listitem: Sign out'] });
+    const pageWithElement = { ...page, element: { selector: 'li', matchedIndexes: [0], matchedCount: 4 } };
+    const run = createRun(pageWithElement, analysis, {
+      ariaSnapshots: ['- listitem: Profile', '', '', '- listitem: Sign out'],
+      ariaMatchVisibilities: ['shown', 'not-rendered', 'not-painted', 'shown'],
+    });
     const reportLines = format({ target: page.url, runs: [run], error: null }, { report: 'none' }).split('\n');
 
-    assert.deepEqual(reportLines.slice(1), ['aria li match 1:', '- listitem: Profile', 'aria li match 3:', '- listitem: Sign out']);
+    assert.deepEqual(reportLines.slice(1), [
+      'aria li match 1 of 4:',
+      '- listitem: Profile',
+      'aria li match 2 of 4: none (not rendered)',
+      'aria li match 3 of 4: none (not painted)',
+      'aria li match 4 of 4:',
+      '- listitem: Sign out',
+    ]);
   });
 
   test('a second scheme with the same snapshot prints aria: same as light', () => {
@@ -1403,14 +1433,8 @@ describe('since last run', () => {
   });
 });
 
-describe('across runs', () => {
-  test('one run prints no across block', () => {
-    const reportLines = formatPage({ roots: [{ name: 'body', size: [1280, 800] }] });
-
-    assert.ok(!reportLines.includes('across runs:'));
-  });
-
-  test('two runs list findings that only some runs have', () => {
+describe('several runs', () => {
+  test('runs whose findings differ print one block each and no across block', () => {
     const createSpec = (hasPastViewport: boolean): PageSpec => ({
       roots: [
         {
@@ -1435,11 +1459,26 @@ describe('across runs', () => {
       createRun(mobile.page, mobile.analysis, { viewport: { width: 390, height: 844 } }),
       createRun(desktop.page, desktop.analysis, { colorScheme: 'dark' }),
     ];
-    const output = format({ target: mobile.page.url, runs, error: null });
+    const output = format({ target: mobile.page.url, runs, error: null }, { report: 'summary' });
     const runBlocks = output.split('\n\n');
 
-    assert.equal(runBlocks.length, 3);
-    assert.equal(runBlocks[2], 'across runs:\n  390x844 light only: a.more past viewport end 14\n  all runs: 1 finding shared');
+    assert.equal(runBlocks.length, 2);
+    assert.ok(!output.includes('across runs:'), output);
+    assert.match(runBlocks[0], /\n {2}past viewport end 14: a\.more/);
+    assert.doesNotMatch(runBlocks[1], /past viewport/);
+  });
+
+  test('a second scheme with the same summary prints summary: same as light', () => {
+    const spec: PageSpec = {
+      roots: [{ name: 'body', size: [1280, 800], children: [{ name: 'a.more', size: [10, 10], findings: [{ kind: 'small-target', text: 'small target 10x10' }] }] }],
+    };
+    const light = createPage(spec);
+    const dark = createPage({ ...spec, page: { colorScheme: 'dark' } });
+    const runs = [createRun(light.page, light.analysis), createRun(dark.page, dark.analysis, { colorScheme: 'dark' })];
+    const runBlocks = format({ target: light.page.url, runs, error: null }, { report: 'summary' }).split('\n\n');
+
+    assert.deepEqual(runBlocks[1].split('\n').slice(1), ['summary: same as light']);
+    assert.deepEqual(runBlocks[0].split('\n').slice(1), ['summary: 1 finding', '  small target 10x10: a.more']);
   });
 
   test('a second scheme with the same tree prints only the lines whose findings differ', () => {
@@ -1478,7 +1517,7 @@ describe('across runs', () => {
     assert.equal(runBlocks[1].split('\n').at(-1), 'body 1280x900');
   });
 
-  test('runs with the same findings print no across block', () => {
+  test('runs at different viewports with the same summary both print it in full', () => {
     const spec: PageSpec = {
       roots: [{ name: 'body', size: [1280, 800], children: [{ name: 'a.more', size: [10, 10], findings: [{ kind: 'small-target', text: 'small target 10x10' }] }] }],
     };
@@ -1488,7 +1527,38 @@ describe('across runs', () => {
       createRun(mobile.page, mobile.analysis, { viewport: { width: 390, height: 844 } }),
       createRun(desktop.page, desktop.analysis),
     ];
+    const runBlocks = format({ target: mobile.page.url, runs, error: null }, { report: 'summary' }).split('\n\n');
 
-    assert.ok(!format({ target: mobile.page.url, runs, error: null }).includes('across runs:'));
+    assert.ok(runBlocks.every((runBlock) => runBlock.includes('  small target 10x10: a.more')), runBlocks.join('\n\n'));
+  });
+});
+
+describe('top layer and scripts on the facts line', () => {
+  test('every top-layer root is listed with its kind', () => {
+    const reportLines = formatPage({
+      roots: [
+        { name: 'body', size: [1280, 800] },
+        { name: 'div.menu', size: [200, 100], node: { topLayer: 'popover', isViewportFrame: true } },
+        { name: 'dialog.help', size: [400, 300], node: { topLayer: 'popover', isViewportFrame: true } },
+      ],
+    });
+
+    assert.match(reportLines[0], / top layer: div\.menu popover, dialog\.help popover$/);
+  });
+
+  test('a script that changed nothing prints page unchanged by script', () => {
+    const unchangedLines = formatPage({ roots: [{ name: 'body', size: [1280, 800] }] }, { isPageUnchangedByScript: true });
+    const changedLines = formatPage({ roots: [{ name: 'body', size: [1280, 800] }] });
+
+    assert.match(unchangedLines[0], / page unchanged by script$/);
+    assert.doesNotMatch(changedLines[0], /unchanged/);
+  });
+
+  test('findings behind a modal are counted on the last summary line', () => {
+    const { page, analysis } = createPage({ roots: [{ name: 'body', size: [1280, 800] }] });
+    const run = createRun(page, { ...analysis, behindModalFindingCount: 3 });
+    const reportLines = format({ target: page.url, runs: [run], error: null }, { report: 'summary' }).split('\n');
+
+    assert.deepEqual(reportLines.slice(1), ['summary: no findings', '  3 findings behind the modal not listed']);
   });
 });

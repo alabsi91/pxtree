@@ -73,10 +73,14 @@ function getSummaryLines(output) {
       continue;
     }
 
-    if (isInsideSummary && line.startsWith('  ')) {
+    const isBehindModalCountLine = line.endsWith(' behind the modal not listed');
+
+    if (isInsideSummary && line.startsWith('  ') && !isBehindModalCountLine) {
       summaryLines.push(line.trim());
       continue;
     }
+
+    if (isInsideSummary && isBehindModalCountLine) continue;
 
     isInsideSummary = false;
   }

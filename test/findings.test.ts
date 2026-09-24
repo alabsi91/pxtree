@@ -87,6 +87,7 @@ function createNode(index: number, spec: NodeSpec): MeasuredNode {
     isDisabled: false,
     isInlineInText: false,
     isInert: false,
+    isPointerEventsNone: false,
     topLayer: null,
     shadow: null,
     isSlotted: false,
@@ -908,6 +909,39 @@ describe('tops across siblings and wider', () => {
     assert.deepEqual(getFindingTexts(createCardRow([100, 101, 100])), []);
   });
 
+  test('a cousin pairs only with the same tag at the same child position', () => {
+    const page = createCardRow([100, 100, 116]);
+    page.nodes[8].tag = 'div';
+    page.nodes[8].name = 'div.divider';
+
+    assert.deepEqual(getFindingTexts(page), []);
+  });
+
+  test('a descendant range prints each descendant @y from its own parent', () => {
+    const page = createCardRow([100, 100, 116]);
+
+    for (const cardIndex of [2, 5, 8]) {
+      page.nodes[cardIndex].padding = [10, 0, 0, 0];
+    }
+
+    assert.deepEqual(getFindingTexts(page), ['ul.cards: a.button tops 90..106 across siblings']);
+  });
+
+  test('parts that line up in the row do not fire when the members differ in height and are centered', () => {
+    const page = createPage([
+      bodySpec,
+      { parentIndex: 0, name: 'div.row', rect: createRect(0, 0, 400, 40) },
+      { parentIndex: 1, name: 'div.group', rect: createRect(0, 0, 100, 32) },
+      { parentIndex: 2, name: 'button', rect: createRect(0, 0, 32, 32), padding: [6, 6, 6, 6] },
+      { parentIndex: 3, name: 'svg', rect: createRect(6, 6, 20, 20) },
+      { parentIndex: 1, name: 'div.group', rect: createRect(200, 4, 100, 24) },
+      { parentIndex: 5, name: 'button', rect: createRect(200, 4, 24, 24) },
+      { parentIndex: 6, name: 'svg', rect: createRect(200, 5, 22, 22) },
+    ]);
+
+    assert.deepEqual(getFindingTexts(page), []);
+  });
+
   test('wider fires on the odd one', () => {
     assert.deepEqual(getFindingTexts(createCardRow([100, 100, 100], [100, 100, 112])), ['li.card: 12 wider than li.card']);
   });
@@ -1161,6 +1195,20 @@ describe('small target', () => {
     assert.deepEqual(getFindingTexts(page), ['button.close: small target 20x20', 'button.open: small target 20x20']);
   });
 
+  test('a neighbor that nothing can hit takes no part in the spacing: fully covered, pointer-events none or inert', () => {
+    const fullyCovered = { coverage: { sampleCount: 12, coveredSampleCount: 12, coverers: [] } };
+    const partlyCovered = { coverage: { sampleCount: 12, coveredSampleCount: 11, coverers: [] } };
+
+    assert.deepEqual(getFindingTexts(createTargetPage({}, fullyCovered)), []);
+    assert.deepEqual(getFindingTexts(createTargetPage({}, { isPointerEventsNone: true })), []);
+    assert.deepEqual(getFindingTexts(createTargetPage({}, { isInert: true })), []);
+    assert.deepEqual(getFindingTexts(createTargetPage({}, partlyCovered)), ['button.close: small target 20x20']);
+  });
+
+  test('an inert target still compares with its inert neighbors', () => {
+    assert.deepEqual(getFindingTexts(createTargetPage({ isInert: true }, { isInert: true })), ['button.close: small target 20x20']);
+  });
+
   test('summary text keeps the size out', () => {
     const [finding] = analyze(createTargetPage({})).findings;
 
@@ -1233,6 +1281,36 @@ describe('scroll range', () => {
 
   test('a real scroll does not fire', () => {
     assert.deepEqual(getFindingTexts(createScrollPage(568)), []);
+  });
+});
+
+describe('behind a modal', () => {
+  function createModalPage(element: PageMeasurement['element'] = null): PageMeasurement {
+    return createPage(
+      [
+        bodySpec,
+        { parentIndex: 0, tag: 'button', name: 'button.close', rect: createRect(0, 0, 20, 20), isInteractive: true, isInert: true },
+        { parentIndex: 0, tag: 'a', name: 'a.next', rect: createRect(20, 0, 100, 40), isInteractive: true, isInert: true },
+        { parentIndex: -1, tag: 'dialog', name: 'dialog', rect: createRect(400, 300, 200, 100), topLayer: 'modal', isViewportFrame: true },
+        { parentIndex: 3, tag: 'button', name: 'button.ok', rect: createRect(400, 300, 20, 20), isInteractive: true },
+        { parentIndex: 3, tag: 'a', name: 'a.help', rect: createRect(420, 300, 100, 40), isInteractive: true },
+      ],
+      { modalIndex: 3, topLayerIndexes: [3], element },
+    );
+  }
+
+  test('inert nodes behind the modal list no findings, they are counted', () => {
+    const analysis = analyze(createModalPage());
+
+    assert.deepEqual(analysis.findings.map((finding) => finding.nodeIndex), [4]);
+    assert.equal(analysis.behindModalFindingCount, 1);
+  });
+
+  test('an element match behind the modal keeps its findings', () => {
+    const analysis = analyze(createModalPage({ selector: '.close', matchedIndexes: [1], matchedCount: 1 }));
+
+    assert.deepEqual(analysis.findings.map((finding) => finding.nodeIndex), [1, 4]);
+    assert.equal(analysis.behindModalFindingCount, 0);
   });
 });
 

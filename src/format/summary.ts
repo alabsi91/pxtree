@@ -102,6 +102,13 @@ export function getFindingCountText(count: number): string {
 
 /** The summary block. It has one line per finding kind and text, with the amount range, the count and up to three element names. */
 export function formatSummary(page: PageMeasurement, analysis: Analysis): string[] {
+  const behindModalCount = analysis.behindModalFindingCount;
+  const behindModalLines = behindModalCount > 0 ? [`  ${getFindingCountText(behindModalCount)} behind the modal not listed`] : [];
+
+  return [...formatListedSummary(page, analysis), ...behindModalLines];
+}
+
+function formatListedSummary(page: PageMeasurement, analysis: Analysis): string[] {
   if (analysis.findings.length === 0) {
     return ['summary: no findings'];
   }

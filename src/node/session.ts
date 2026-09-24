@@ -7,6 +7,7 @@ import { analyze } from '../findings/findings.ts';
 import { createSnapshot } from '../format/diff.ts';
 import { getPrintableText, getScreenshotClip } from '../format/format.ts';
 import type {
+  AriaMatchVisibility,
   ColorScheme,
   FontFallback,
   FontRequest,
@@ -37,11 +38,12 @@ const networkQuietMaxWaitMs = 1500;
 
 const maxFontStackCount = 20;
 
-/** What loading a viewport found. The time budget of the measurement starts at budgetStartTime. */
+/** What loading a viewport and running the script found. The time budget of the measurement starts at budgetStartTime. */
 interface LoadFacts {
   status: number | null;
   redirectedUrl: string | null;
   budgetStartTime: number;
+  isPageUnchangedByScript: boolean;
 }
 
 type MeasureErrorKind = 'load' | 'script' | 'measure';
@@ -155,14 +157,35 @@ async function takeScreenshot(page: Page, path: string, measurement: PageMeasure
   await page.screenshot(clip === null ? { path } : { path, clip });
 }
 
-async function getAriaSnapshots(page: Page, elementSelector: string | undefined): Promise<string[]> {
+interface AriaMatch {
+  ariaSnapshot: string;
+  visibility: AriaMatchVisibility;
+}
+
+/** One snapshot for the page, or one per element match, each with what its element shows. */
+async function getAriaSnapshots(page: Page, elementSelector: string | undefined): Promise<AriaMatch[]> {
   if (elementSelector === undefined) {
-    return [await page.ariaSnapshot()];
+    return [{ ariaSnapshot: await page.ariaSnapshot(), visibility: 'shown' }];
   }
 
   const elementLocators = await page.locator(`css=${elementSelector}`).all();
 
-  return Promise.all(elementLocators.map((elementLocator) => elementLocator.ariaSnapshot()));
+  return Promise.all(
+    elementLocators.map(async (elementLocator) => ({
+      ariaSnapshot: await elementLocator.ariaSnapshot(),
+      visibility: await elementLocator.evaluate((element): AriaMatchVisibility => {
+        if (!element.checkVisibility()) {
+          return 'not-rendered';
+        }
+
+        return element.checkVisibility({ visibilityProperty: true, opacityProperty: true }) ? 'shown' : 'not-painted';
+      }),
+    })),
+  );
+}
+
+async function getPageStateText(page: Page): Promise<string> {
+  return page.evaluate(() => (globalThis as PxtreeGlobal).__pxtree.getPageStateText());
 }
 
 async function loadTarget(page: Page, url: string, timeoutMs: number): Promise<number | null> {
@@ -372,6 +395,7 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
     const shouldIncludeChildren = options.shouldIncludeChildren ?? true;
     const cacheDirectory = options.cacheDirectory === undefined ? getDefaultCacheDirectory() : options.cacheDirectory;
     const scriptCacheText = options.scriptCacheText ?? (typeof options.script === 'string' ? options.script : null);
+    const snapshotStateKey = options.diffKey === undefined ? [scriptCacheText, options.wait ?? null] : [options.diffKey];
     const hasSeveralRuns = viewports.length * colorSchemes.length > 1;
     const shouldCaptureAriaSnapshot = options.shouldCaptureAriaSnapshot ?? false;
     const shouldMeasurePage = (options.shouldMeasurePage ?? true) || cacheDirectory !== null || options.elementSelector !== undefined;
@@ -400,7 +424,7 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
         await takeScreenshot(page, screenshotPath, measurement);
       }
 
-      const ariaSnapshots = shouldCaptureAriaSnapshot ? await getAriaSnapshots(page, options.elementSelector) : null;
+      const ariaMatches = shouldCaptureAriaSnapshot ? await getAriaSnapshots(page, options.elementSelector) : null;
       const runWithoutMeasurement: RunResult = {
         viewport,
         colorScheme,
@@ -413,7 +437,9 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
         isCacheEnabled: cacheDirectory !== null,
         screenshotPath,
         shouldIncludeChildren,
-        ariaSnapshots,
+        ariaSnapshots: ariaMatches?.map((ariaMatch) => ariaMatch.ariaSnapshot) ?? null,
+        ariaMatchVisibilities: ariaMatches?.map((ariaMatch) => ariaMatch.visibility) ?? null,
+        isPageUnchangedByScript: loadFacts.isPageUnchangedByScript,
         redirectedUrl: loadFacts.redirectedUrl,
         fontFallbacks,
       };
@@ -426,7 +452,7 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
       let previousSnapshot: Snapshot | null = null;
 
       if (cacheDirectory !== null) {
-        const snapshotKey = getSnapshotKey([url, viewport.width, viewport.height, colorScheme, devicePixelRatio, scroll, scriptCacheText, options.wait ?? null]);
+        const snapshotKey = getSnapshotKey([url, viewport.width, viewport.height, colorScheme, devicePixelRatio, scroll, ...snapshotStateKey]);
         previousSnapshot = await readSnapshot(cacheDirectory, snapshotKey);
         await writeSnapshot(cacheDirectory, snapshotKey, createSnapshot(measurement, analysis));
       }
@@ -444,7 +470,12 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
         await page.emulateMedia({ colorScheme: colorSchemes[0] });
 
         const status = await loadTarget(page, url, timeoutMs);
-        const loadFacts: LoadFacts = { status, redirectedUrl: getRedirectedUrl(url, page.url()), budgetStartTime: Date.now() };
+        const loadFacts: LoadFacts = {
+          status,
+          redirectedUrl: getRedirectedUrl(url, page.url()),
+          budgetStartTime: Date.now(),
+          isPageUnchangedByScript: false,
+        };
 
         await page.evaluate(async () => {
           await document.fonts.ready;
@@ -460,6 +491,8 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
 
         await scrollPage(page, scroll);
 
+        const stateTextBeforeScript = options.script === undefined ? null : await getPageStateText(page);
+
         if (options.script !== undefined) {
           await runPageScript(page, options.script);
         }
@@ -469,6 +502,10 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
         }
 
         const firstSettle = await settlePage(page);
+
+        if (stateTextBeforeScript !== null) {
+          loadFacts.isPageUnchangedByScript = stateTextBeforeScript === (await getPageStateText(page));
+        }
         runs.push(await measureRun(page, viewport, colorSchemes[0], loadFacts, firstSettle));
 
         for (const colorScheme of colorSchemes.slice(1)) {

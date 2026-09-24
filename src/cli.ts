@@ -29,6 +29,7 @@ const usageText = `usage: pxtree <url|host|file> [flags]
   --channel <name>
   --no-reveal
   --no-diff
+  --diff-key <name>           since last run compares runs with the same name, with or without a script
 
 flag examples and how to read the output, run: pxtree guide`;
 
@@ -161,7 +162,6 @@ function getFactsAndSummaryLines(reportText: string): string[] {
 
   for (const runBlock of reportText.split('\n\n')) {
     const blockLines = runBlock.split('\n');
-    if (blockLines[0].startsWith('across runs:')) continue;
 
     keptLines.push(blockLines[0]);
 
@@ -204,6 +204,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
       'channel': { type: 'string' },
       'no-reveal': { type: 'boolean', default: false },
       'no-diff': { type: 'boolean', default: false },
+      'diff-key': { type: 'string' },
       'help': { type: 'boolean', default: false },
     },
   });
@@ -238,6 +239,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
     screenshotPath: flagValues.screenshot,
     shouldCaptureAriaSnapshot: flagValues.aria,
     shouldMeasurePage: reportDetail !== 'none',
+    diffKey: flagValues['diff-key'],
   };
 
   if (flagValues.viewport !== undefined) {

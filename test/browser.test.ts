@@ -183,6 +183,8 @@ test('sticky header covers a heading only when stuck, a pointer-events none shad
 
   assert.equal(shadedText.coverage!.coverers[0].index, shade.index);
   assert.equal(shadedText.coverage!.coverers[0].isTranslucent, true);
+  assert.equal(shade.isPointerEventsNone, true);
+  assert.equal(header.isPointerEventsNone, false);
 
   await page.context().close();
 });

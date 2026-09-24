@@ -15,13 +15,13 @@ Findings are measurements that passed a threshold, never verdicts. Judge each on
 
 Tree line: name "text" WxH @x,y [tags] [!! findings] ×N. WxH is the border box after transforms. @x,y is from the parent's content box, x from the start edge.
 
-Parameters: target (URL, localhost:5173-style host, or HTML file path), viewports, schemes, scroll, element, children, colors, wait, script (Playwright page code), screenshot, timeout, diff, report (tree, findings for only the lines with findings, summary without the tree, changes, or none), aria (adds the accessibility tree: names, roles, states). One call can return the report, the aria tree and a screenshot together.
+Parameters: target (URL, localhost:5173-style host, or HTML file path), viewports, schemes, scroll, element, children, colors, wait, script (Playwright page code), screenshot, timeout, diff, diffKey, report (tree, findings for only the lines with findings, summary without the tree, changes, or none), aria (adds the accessibility tree: names, roles, states). One call can return the report, the aria tree and a screenshot together.
 
-Call the guide tool once before the first measure to learn the tags and findings.`;
+Call the guide tool once before the first measure to learn the tags and findings. If the pxtree skill is loaded, skip the guide tool: the skill already holds the guide.`;
 
 const guideToolDescription = 'Returns the pxtree reading guide: every flag, the output grammar, every tag and finding, and the limits. Call it once before the first measure.';
 
-const serverInstructions = `Run measure after every CSS or markup change. Pass the widths that matter when something reflows, and both schemes when a color changed. Findings are measurements, not verdicts: judge each against the code. Once you judge a finding to be the design, say so once and never mention it again. Never paste the output to the user.`;
+const serverInstructions = `Run measure after every CSS or markup change. Pass the widths that matter when something reflows, and both schemes when a color changed. Findings are measurements, not verdicts: judge each against the code. Once you judge a finding to be the design, say so once and never mention it again. Never paste the output to the user. If the pxtree skill is loaded, skip the guide tool: the skill already holds the guide.`;
 
 const maxViewportSide = 10000;
 const maxViewportCount = 10;
@@ -46,6 +46,10 @@ const measureInputSchema = {
   screenshot: z.boolean().optional().describe('Save a PNG per run under the OS temp directory and return its path'),
   timeout: z.number().positive().max(maxTimeoutMs).optional().describe('Milliseconds to reach DOMContentLoaded. Default 30000'),
   diff: z.boolean().optional().describe('Compare with the previous run of the same target and settings. Default true'),
+  diffKey: z
+    .string()
+    .optional()
+    .describe('A name that replaces script and wait in the since-last-run key, to compare a scripted run with a plain run that used the same name'),
   report: z
     .enum(['tree', 'findings', 'summary', 'changes', 'none'])
     .optional()
@@ -67,6 +71,7 @@ async function createMeasureOptions(input: MeasureInput): Promise<MeasureOptions
     timeoutMs: input.timeout,
     shouldCaptureAriaSnapshot: input.aria,
     shouldMeasurePage: input.report !== 'none',
+    diffKey: input.diffKey,
   };
 
   if (input.diff === false) {

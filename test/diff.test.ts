@@ -53,3 +53,13 @@ test('since last run reports first run, no changes, then what the script changed
   assert.ok(findLine(thirdLines, '+ body>aside.note '));
   assert.ok(findLine(thirdLines, '~ body>main>section.hero>p.lead 300x'));
 });
+
+test('a diff key lets a scripted run with a wait compare with a plain run of the same key', async () => {
+  const plainLines = await formatFixture(session, 'simple.html', { cacheDirectory, diffKey: 'baseline' });
+  const scriptedLines = await formatFixture(session, 'simple.html', { cacheDirectory, diffKey: 'baseline', script: changePage, wait: 10 });
+  const otherKeyLines = await formatFixture(session, 'simple.html', { cacheDirectory, diffKey: 'other', script: changePage });
+
+  assert.equal(findLine(plainLines, 'since last run:'), 'since last run: first run');
+  assert.ok(findLine(scriptedLines, '+ body>aside.note '), scriptedLines.join('\n'));
+  assert.equal(findLine(otherKeyLines, 'since last run:'), 'since last run: first run');
+});

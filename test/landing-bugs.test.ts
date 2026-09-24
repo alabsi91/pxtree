@@ -87,11 +87,11 @@ describe('landing-bugs.html at two viewports and two schemes, scrolled to #prici
     );
   });
 
-  test('the across block uses short names and prints no zero line', () => {
-    const acrossLines = reportLines.slice(reportLines.indexOf('across runs:'));
+  test('each run keeps its own summary and there is no across block', () => {
+    const darkContrastLines = reportLines.filter((line) => line === '  contrast 2.1 ×3, text #4a4f58: div.footer-legal li');
 
-    assert.ok(acrossLines.includes('  390x844 dark, 1280x800 dark only: div.footer-legal li contrast 2.1 ×3'), acrossLines.join('\n'));
-    assert.ok(acrossLines.every((line) => !line.includes('body>') && !line.includes('0 findings shared')), acrossLines.join('\n'));
+    assert.ok(!reportLines.includes('across runs:'), reportLines.join('\n'));
+    assert.equal(darkContrastLines.length, 2, reportLines.join('\n'));
   });
 
   test('every planted bug outside the dialog reaches a summary', () => {
