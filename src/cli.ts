@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { createSession, format, readingGuideText } from './index.ts';
-import type { ColorScheme, FormatOptions, MeasureOptions, PageScript, Viewport } from './types.ts';
+import { createSession, format, getTargetUrl, readingGuideText } from './index.ts';
+import type { ColorScheme, FormatOptions, MeasureOptions, PageScript, ReportDetail, Viewport } from './types.ts';
 
 const usageText = `usage: pxtree <url|host|file> [flags]
        pxtree guide    print the reading guide
        pxtree mcp      run as an MCP server on stdio
 
-  --viewport <WxH[,WxH...]>   default 1280x800
+  --viewport <WxH[,WxH...]>   default 1280x800; a width alone like 390 gets a matching height
   --scheme <light|dark|light,dark>
   --dpr <n>
   --scroll <y|x,y|selector>
@@ -20,8 +20,8 @@ const usageText = `usage: pxtree <url|host|file> [flags]
   --element <selector>
   --no-children
   --colors
-  --summary                   facts, since last run and summary, no tree
-  --changes                   facts and since last run only
+  --report <tree|findings|summary|changes|none>   default tree
+  --aria                      the aria tree after the report
   --screenshot <path>
   --json
   --out <dir>
@@ -47,15 +47,28 @@ class UsageError extends CommandLineError {
   }
 }
 
+/** Common device heights for a width given alone. Any other width gets defaultViewportHeight. */
+const viewportHeightByWidth = new Map([
+  [390, 844],
+  [768, 1024],
+  [820, 1180],
+  [1024, 768],
+  [1280, 800],
+  [1440, 900],
+  [1920, 1080],
+]);
+
+const defaultViewportHeight = 800;
+
 function parseViewports(viewportText: string): Viewport[] {
   return viewportText.split(',').map((sizeText) => {
-    const sizeMatch = /^(\d+)x(\d+)$/i.exec(sizeText.trim());
+    const sizeMatch = /^(\d+)(?:x(\d+))?$/i.exec(sizeText.trim());
     if (sizeMatch === null) {
-      throw new UsageError(`bad viewport: ${sizeText}, expected WxH like 1280x800`);
+      throw new UsageError(`bad viewport: ${sizeText}, expected WxH like 1280x800 or a width like 390`);
     }
 
     const width = Number(sizeMatch[1]);
-    const height = Number(sizeMatch[2]);
+    const height = sizeMatch[2] === undefined ? (viewportHeightByWidth.get(width) ?? defaultViewportHeight) : Number(sizeMatch[2]);
     if (width === 0 || height === 0) {
       throw new UsageError(`bad viewport: ${sizeText}, width and height must be positive`);
     }
@@ -95,6 +108,17 @@ function parseScroll(scrollText: string): MeasureOptions['scroll'] {
   }
 
   return scrollText;
+}
+
+const reportDetails: ReportDetail[] = ['tree', 'findings', 'summary', 'changes', 'none'];
+
+function parseReportDetail(reportText: string): ReportDetail {
+  const reportDetail = reportDetails.find((detail) => detail === reportText);
+  if (reportDetail === undefined) {
+    throw new UsageError(`bad --report: ${reportText}, expected tree, findings, summary, changes or none`);
+  }
+
+  return reportDetail;
 }
 
 function parseWait(waitText: string): number | string {
@@ -171,8 +195,8 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
       'element': { type: 'string' },
       'no-children': { type: 'boolean', default: false },
       'colors': { type: 'boolean', default: false },
-      'summary': { type: 'boolean', default: false },
-      'changes': { type: 'boolean', default: false },
+      'report': { type: 'string', default: 'tree' },
+      'aria': { type: 'boolean', default: false },
       'screenshot': { type: 'string' },
       'json': { type: 'boolean', default: false },
       'out': { type: 'string' },
@@ -195,8 +219,16 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
     );
   }
 
-  if (flagValues.summary && flagValues.changes) {
-    throw new UsageError('--summary and --changes cannot be used together');
+  const targetUrl = getTargetUrl(targetArguments[0]);
+  const isDirectoryTarget = targetUrl.startsWith('file:') && statSync(fileURLToPath(targetUrl), { throwIfNoEntry: false })?.isDirectory() === true;
+  if (isDirectoryTarget) {
+    throw new UsageError(`target is a directory: ${targetArguments[0]}`);
+  }
+
+  const reportDetail = parseReportDetail(flagValues.report);
+
+  if (reportDetail === 'none' && !flagValues.aria && flagValues.screenshot === undefined) {
+    throw new UsageError('--report none prints nothing without --aria or --screenshot');
   }
 
   const measureOptions: MeasureOptions = {
@@ -204,6 +236,8 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
     shouldReveal: !flagValues['no-reveal'],
     elementSelector: flagValues.element,
     screenshotPath: flagValues.screenshot,
+    shouldCaptureAriaSnapshot: flagValues.aria,
+    shouldMeasurePage: reportDetail !== 'none',
   };
 
   if (flagValues.viewport !== undefined) {
@@ -250,8 +284,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
 
     const formatOptions: FormatOptions = {
       shouldShowColors: flagValues.colors,
-      isSummaryOnly: flagValues.summary,
-      isChangesOnly: flagValues.changes,
+      report: reportDetail,
     };
 
     if (flagValues.out !== undefined) {
@@ -270,7 +303,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
       console.log(format(result, formatOptions));
     }
 
-    const hasNoElementMatch = result.runs.some((run) => run.page.element?.matchedCount === 0);
+    const hasNoElementMatch = result.runs.some((run) => run.page?.element?.matchedCount === 0);
 
     if (hasNoElementMatch) {
       console.error(`no element matches ${flagValues.element}`);

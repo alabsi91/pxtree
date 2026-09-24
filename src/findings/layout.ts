@@ -22,8 +22,27 @@ export function getBottom(rect: Rect): number {
   return rect.y + rect.height;
 }
 
+/**
+ * Drawn size over layout size on each axis. Border and padding are layout values, and a scale draws them bigger or
+ * smaller. It is 1 outside transforms.
+ */
+function getDrawnScale(node: MeasuredNode): { x: number; y: number } {
+  const isScaled = node.scale !== 1 || node.isInsideTransform;
+  if (!isScaled || node.layoutWidth <= 0 || node.layoutHeight <= 0) {
+    return { x: 1, y: 1 };
+  }
+
+  return { x: node.rect.width / node.layoutWidth, y: node.rect.height / node.layoutHeight };
+}
+
+function getDrawnSides(node: MeasuredNode, sides: MeasuredNode['border']): MeasuredNode['border'] {
+  const drawnScale = getDrawnScale(node);
+
+  return [sides[0] * drawnScale.y, sides[1] * drawnScale.x, sides[2] * drawnScale.y, sides[3] * drawnScale.x];
+}
+
 export function getPaddingBox(node: MeasuredNode): Rect {
-  const [borderTop, borderRight, borderBottom, borderLeft] = node.border;
+  const [borderTop, borderRight, borderBottom, borderLeft] = getDrawnSides(node, node.border);
 
   return {
     x: node.rect.x + borderLeft,
@@ -35,7 +54,7 @@ export function getPaddingBox(node: MeasuredNode): Rect {
 
 export function getContentBox(node: MeasuredNode): Rect {
   const paddingBox = getPaddingBox(node);
-  const [paddingTop, paddingRight, paddingBottom, paddingLeft] = node.padding;
+  const [paddingTop, paddingRight, paddingBottom, paddingLeft] = getDrawnSides(node, node.padding);
 
   return {
     x: paddingBox.x + paddingLeft,

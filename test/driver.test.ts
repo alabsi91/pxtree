@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { Page } from 'playwright-core';
-import { createSession, type MeasureResult, type Session } from 'pxtree';
+import { createSession, format, getTargetUrl, type MeasureResult, type Session } from 'pxtree';
 import { findLine, formatFixture, getFixtureUrl, measureFixture } from './helpers.ts';
 
 let session: Session;
@@ -26,7 +28,7 @@ function hasLineStartingWith(reportLines: string[], lineStart: string): boolean 
 }
 
 function hasUnpaintedNode(result: MeasureResult): boolean {
-  return result.runs[0].page.nodes.some((node) => node.visibility === 'unpainted-opacity');
+  return result.runs[0].page?.nodes.some((node) => node.visibility === 'unpainted-opacity') === true;
 }
 
 function getPngSize(pngPath: string): { width: number; height: number } {
@@ -62,6 +64,62 @@ test('state: --wait waits for a selector that appears after the script', async (
   findLine(waitedLines, 'div.late-panel "Loaded later"');
 });
 
+test('state: the aria tree lists the menu items only after the script opens the menu', async () => {
+  const closedLines = await formatFixture(session, 'state', { shouldCaptureAriaSnapshot: true });
+  const openLines = await formatFixture(session, 'state', { shouldCaptureAriaSnapshot: true, script: "await page.click('#menu-toggle')" });
+  const openAriaLines = openLines.slice(openLines.indexOf('aria:'));
+
+  assert.ok(closedLines.includes('aria:'), closedLines.join('\n'));
+  assert.equal(hasLineStartingWith(closedLines, '- listitem'), false, closedLines.join('\n'));
+  assert.ok(openAriaLines.includes('- button "Menu"'), openAriaLines.join('\n'));
+  assert.deepEqual(
+    openAriaLines.filter((line) => line.trimStart().startsWith('- listitem')).map((line) => line.trim()),
+    ['- listitem: Profile', '- listitem: Settings', '- listitem: Sign out'],
+  );
+});
+
+test('state: the aria tree follows --element, one heading per match, whole subtree even without children', async () => {
+  const script = "await page.click('#menu-toggle')";
+  const itemLines = await formatFixture(session, 'state', { shouldCaptureAriaSnapshot: true, script, elementSelector: '.menu-item', report: 'none' });
+  const menuLines = await formatFixture(session, 'state', {
+    shouldCaptureAriaSnapshot: true,
+    script,
+    elementSelector: '.menu',
+    shouldIncludeChildren: false,
+    report: 'none',
+  });
+
+  assert.deepEqual(itemLines.slice(1), [
+    'aria .menu-item match 1:',
+    '- listitem: Profile',
+    'aria .menu-item match 2:',
+    '- listitem: Settings',
+    'aria .menu-item match 3:',
+    '- listitem: Sign out',
+  ]);
+  assert.deepEqual(menuLines.slice(1), ['aria:', '- list:', '  - listitem: Profile', '  - listitem: Settings', '  - listitem: Sign out']);
+});
+
+test('state: a second scheme with the same aria tree prints aria: same as light', async () => {
+  const reportLines = await formatFixture(session, 'state', { shouldCaptureAriaSnapshot: true, colorSchemes: ['light', 'dark'], report: 'none' });
+
+  assert.equal(reportLines.filter((line) => line === 'aria:').length, 1, reportLines.join('\n'));
+  assert.equal(reportLines.at(-1), 'aria: same as light');
+});
+
+test('shouldMeasurePage false skips the measurement only while the cache and elementSelector are off', async () => {
+  const cacheDirectory = await mkdtemp(join(temporaryDirectory, 'skip-'));
+  const skippedResult = await measureFixture(session, 'state', { shouldMeasurePage: false, shouldCaptureAriaSnapshot: true });
+  const cachedResult = await measureFixture(session, 'state', { shouldMeasurePage: false, cacheDirectory });
+  const elementResult = await measureFixture(session, 'state', { shouldMeasurePage: false, elementSelector: 'button' });
+
+  assert.equal(skippedResult.runs[0].page, null);
+  assert.equal(skippedResult.runs[0].analysis, null);
+  assert.ok(skippedResult.runs[0].ariaSnapshots?.[0].includes('- button "Menu"'));
+  assert.notEqual(cachedResult.runs[0].page, null);
+  assert.notEqual(elementResult.runs[0].page, null);
+});
+
 test('two viewports and two schemes share one browser, one context and one page', async () => {
   const seenPages = new Set<Page>();
   const contextCounts: number[] = [];
@@ -85,7 +143,7 @@ test('two viewports and two schemes share one browser, one context and one page'
     ['390x844 light', '390x844 dark', '1280x800 light', '1280x800 dark'],
   );
   assert.deepEqual(
-    result.runs.map((run) => run.page.colorScheme),
+    result.runs.map((run) => run.page?.colorScheme),
     ['light', 'dark', 'light', 'dark'],
   );
   assert.equal(seenPages.size, 1);
@@ -162,6 +220,67 @@ test('the cache is off with cacheDirectory null', async () => {
 test('reveal: below-the-fold sections are shown after the reveal pass', async () => {
   assert.equal(hasUnpaintedNode(await measureFixture(session, 'reveal')), false);
   assert.equal(hasUnpaintedNode(await measureFixture(session, 'reveal', { shouldReveal: false })), true);
+});
+
+test('fonts: a web font that did not draw prints once as not used, the generic and default fonts print nothing', async () => {
+  const result = await measureFixture(session, 'fonts');
+  const factsLine = format(result).split('\n')[0];
+
+  assert.equal(result.runs[0].fontFallbacks.length, 1, JSON.stringify(result.runs[0].fontFallbacks));
+  assert.equal(result.runs[0].fontFallbacks[0].requestedFamily, 'Brandface');
+  assert.match(factsLine, / font "Brandface" not used, drew \S/);
+  assert.doesNotMatch(factsLine, /font failed/);
+});
+
+test('a measurement that runs past the timeout ends with a measure error, and the session keeps working', async () => {
+  const hangingScript = 'await page.evaluate(() => { document.elementsFromPoint = function () { for (;;) {} }; })';
+  const startTime = Date.now();
+  const result = await session.measure(getFixtureUrl('state'), { cacheDirectory: null, timeoutMs: 3000, script: hangingScript });
+
+  assert.equal(result.error?.kind, 'measure');
+  assert.match(result.error?.message ?? '', /^measurement timed out after \d+ ms$/);
+  assert.ok(Date.now() - startTime < 10000, `took ${Date.now() - startTime} ms`);
+  assert.equal((await measureFixture(session, 'state')).runs.length, 1);
+});
+
+test('a redirect prints on the facts line, a trailing slash does not', async () => {
+  const server = createServer((request, response) => {
+    if (request.url === '/old') {
+      response.writeHead(302, { location: '/new' });
+      response.end();
+      return;
+    }
+
+    if (request.url === '/docs') {
+      response.writeHead(301, { location: '/docs/' });
+      response.end();
+      return;
+    }
+
+    response.writeHead(200, { 'content-type': 'text/html' });
+    response.end('<!doctype html><body><p>Page</p></body>');
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+
+  try {
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const redirectedResult = await session.measure(`${origin}/old`, { cacheDirectory: null });
+    const slashResult = await session.measure(`${origin}/docs`, { cacheDirectory: null });
+
+    assert.equal(redirectedResult.runs[0].redirectedUrl, `${origin}/new`);
+    assert.match(format(redirectedResult).split('\n')[0], new RegExp(` redirected to ${origin}/new`));
+    assert.equal(slashResult.runs[0].redirectedUrl, null);
+  } finally {
+    server.close();
+  }
+});
+
+test('a file path keeps its query and fragment on the URL', () => {
+  const fixturePath = 'test/fixtures/state.html';
+
+  assert.equal(getTargetUrl(`${fixturePath}?tab=2#menu`), `${getFixtureUrl('state')}?tab=2#menu`);
+  assert.equal(getTargetUrl('localhost:5173/a?b'), 'http://localhost:5173/a?b');
 });
 
 test('animations: the page settles with no element still moving', async () => {

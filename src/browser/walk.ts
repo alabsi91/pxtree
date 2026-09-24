@@ -358,7 +358,11 @@ function isScreenReaderOnly(element: Element, style: CSSStyleDeclaration, box: B
   const isTinyBox = box.right - box.left <= 1 && box.bottom - box.top <= 1;
   const border = getSides(style, 'border');
   const contentBox = getInsetBox(getInsetBox(box, border), getSides(style, 'padding'));
-  const isTinyContentBox = contentBox.right - contentBox.left <= 1 && contentBox.bottom - contentBox.top <= 1;
+  const contentWidth = contentBox.right - contentBox.left;
+  const contentHeight = contentBox.bottom - contentBox.top;
+  const isThinContentAxis = (size: number) => size > 0 && size <= 1;
+  const isTinyContentBox =
+    (contentWidth <= 1 && contentHeight <= 1) || isThinContentAxis(contentWidth) || isThinContentAxis(contentHeight);
   const hasBoxPaint =
     getColorBytes(style.backgroundColor)[3] > 0 || style.backgroundImage !== 'none' || border.some((width) => width > 0);
   const isOverflowClipped = style.overflowX !== 'visible' || style.overflowY !== 'visible';
@@ -1144,6 +1148,10 @@ function getOwnLineRects(element: Element, range: Range): DOMRect[] {
     const childStyle = getComputedStyle(child);
     const isOutOfFlow = childStyle.position === 'absolute' || childStyle.position === 'fixed' || childStyle.float !== 'none';
     if (isOutOfFlow) continue;
+
+    const isScreenReaderOnlyChild =
+      childStyle.display !== 'contents' && isScreenReaderOnly(child, childStyle, createBox(child.getBoundingClientRect(), 0, 0));
+    if (isScreenReaderOnlyChild) continue;
 
     const isInlineContainer =
       childStyle.display === 'contents' || (childStyle.display === 'inline' && !leafTags.has(child.localName));

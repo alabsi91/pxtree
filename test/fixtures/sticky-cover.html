@@ -6,7 +6,8 @@
     <style>
       body { margin: 0; font-family: sans-serif; }
       header.site { position: sticky; top: 0; height: 64px; background: #fff; border-bottom: 1px solid #ddd; z-index: 10; }
-      .spacer { height: 375px; }
+      nav.sub { position: sticky; top: 64px; height: 40px; width: 200px; margin-left: auto; background: #eee; z-index: 9; }
+      .spacer { height: 335px; }
       h2.section-title { margin: 0; font-size: 36px; line-height: 48px; }
       .tall { height: 2000px; }
       .shade { position: fixed; left: 0; right: 0; bottom: 0; height: 120px; background: rgba(255, 255, 255, 0.8); pointer-events: none; }
@@ -15,6 +16,7 @@
   </head>
   <body>
     <header class="site"><a class="logo" href="#">Acme</a></header>
+    <nav class="sub"></nav>
     <div class="spacer"></div>
     <h2 class="section-title">Pricing</h2>
     <div class="tall"></div>

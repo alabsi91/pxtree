@@ -59,12 +59,61 @@ test('measure returns the formatted report', async () => {
   assert.ok(!reportLines.some((line) => line.startsWith('since last run:')), reportLines.join('\n'));
 });
 
-test('measure with summary drops the tree', async () => {
-  const result = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/state.html', diff: false, summary: true } });
+test('measure with report summary and aria returns the summary and the aria tree without the tree', async () => {
+  const result = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/state.html', diff: false, report: 'summary', aria: true } });
+  const reportLines = getResultText(result).split('\n');
+  const summaryPosition = reportLines.findIndex((line) => line.startsWith('summary:'));
+  const ariaPosition = reportLines.indexOf('aria:');
+
+  assert.ok(summaryPosition > 0, reportLines.join('\n'));
+  assert.ok(ariaPosition > summaryPosition, reportLines.join('\n'));
+  assert.equal(reportLines[ariaPosition + 1], '- button "Menu"');
+  assert.ok(!reportLines.some((line) => line.startsWith('body ')), reportLines.join('\n'));
+});
+
+test('measure with report none and neither aria nor screenshot returns a tool error', async () => {
+  const result = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/state.html', report: 'none' } });
+
+  assert.equal(result.isError, true);
+});
+
+test('the server carries standing instructions', () => {
+  const instructions = client.getInstructions() ?? '';
+
+  assert.match(instructions, /after every CSS or markup change/);
+  assert.match(instructions, /say so once and never mention it again/);
+  assert.match(instructions, /Never paste the output to the user/);
+});
+
+test('inputs are bounded: viewport sides, viewport count and timeout', async () => {
+  const tooWide = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/state.html', viewports: [{ width: 10001, height: 800 }] } });
+  const tooMany = await client.callTool({
+    name: 'measure',
+    arguments: { target: 'test/fixtures/state.html', viewports: Array.from({ length: 11 }, () => ({ width: 400, height: 300 })) },
+  });
+  const tooLong = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/state.html', timeout: 120001 } });
+
+  assert.equal(tooWide.isError, true);
+  assert.equal(tooMany.isError, true);
+  assert.equal(tooLong.isError, true);
+});
+
+test('a file target outside the working directory returns a tool error', async () => {
+  const outsidePath = await client.callTool({ name: 'measure', arguments: { target: '../outside.html', diff: false } });
+  const outsideUrl = await client.callTool({ name: 'measure', arguments: { target: 'file:///etc/hostname', diff: false } });
+
+  assert.equal(outsidePath.isError, true);
+  assert.equal(getResultText(outsidePath), 'file target outside the working directory: ../outside.html');
+  assert.equal(outsideUrl.isError, true);
+});
+
+test('report findings prints only lines with findings and their ancestors', async () => {
+  const result = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/dedup.html', diff: false, report: 'findings' } });
   const reportLines = getResultText(result).split('\n');
 
-  assert.ok(reportLines.some((line) => line.startsWith('summary:')), reportLines.join('\n'));
-  assert.ok(!reportLines.some((line) => line.startsWith('body ')), reportLines.join('\n'));
+  assert.notEqual(result.isError, true, getResultText(result));
+  assert.ok(reportLines.includes('body'), reportLines.join('\n'));
+  assert.ok(!reportLines.some((line) => line.includes('li.tile')), reportLines.join('\n'));
 });
 
 test('a bad target returns a tool error with the CLI message', async () => {

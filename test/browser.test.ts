@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { after, before, test } from 'node:test';
 import { type Browser, type Page, chromium } from 'playwright-core';
+import { analyze } from '../src/findings/findings.ts';
 import type { MeasuredNode, MeasurePageOptions, PageMeasurement } from '../src/types.ts';
 
 const browserBundle = readFileSync(new URL('../dist/browser.js', import.meta.url), 'utf8');
@@ -151,6 +152,7 @@ test('sticky header covers a heading only when stuck, a pointer-events none shad
   const atTop = await measurePage(page);
 
   assert.equal(getNode(atTop, 'header.site').isStuck, false);
+  assert.equal(getNode(atTop, 'nav.sub').isStuck, false, 'a sticky offset does not count as stuck at its flow position');
   assert.equal(getNode(atTop, 'h2.section-title').coverage!.coveredSampleCount, 0);
 
   await scrollPage(page, 400);
@@ -166,6 +168,12 @@ test('sticky header covers a heading only when stuck, a pointer-events none shad
   const headingCoverage = heading.coverage!;
 
   assert.equal(header.isStuck, true);
+
+  const subNav = getNode(scrolled, 'nav.sub');
+
+  assert.equal(subNav.isStuck, true);
+  assert.equal(subNav.rect.y, 400 + 64, 'the stuck rect sits at its top offset below the scroll');
+
   assert.equal(headingCoverage.coverers[0].index, header.index);
   assert.ok(headingCoverage.coveredSampleCount > 0);
   assert.ok(headingCoverage.coveredSampleCount < headingCoverage.sampleCount, 'only the top of the heading is covered');
@@ -342,6 +350,8 @@ test('visibility states', async () => {
 
   assert.equal(getNode(measurement, 'div.parked').visibility, 'offscreen');
   assert.equal(getNode(measurement, 'span.sr-only').visibility, 'sr-only');
+  assert.equal(getNode(measurement, 'span.thin-label').visibility, 'sr-only', 'a 1x44 clipped box is sr-only');
+  assert.equal(getNode(measurement, 'p.labelled').textInfo!.lineCount, 1, 'sr-only text adds no line');
 
   const window = getNode(measurement, 'div.window');
   const outside = getNode(measurement, 'div.outside');
@@ -378,6 +388,20 @@ test('text colors and backgrounds', async () => {
     ['#808080', '#000000'],
   );
   assert.equal(getNode(light, 'p.bare').textInfo!.background, '#ffffff');
+
+  const gradientText = getNode(light, 'h2.gradient-text');
+  const clearText = getNode(light, 'p.clear');
+
+  assert.equal(gradientText.textInfo!.color, null, 'gradient text has a transparent fill');
+  assert.equal(clearText.textInfo!.color, null, 'color transparent has a transparent fill');
+
+  const contrastIndexes = analyze(light)
+    .findings.filter((finding) => finding.kind === 'contrast')
+    .map((finding) => finding.nodeIndex);
+
+  assert.ok(contrastIndexes.includes(getNode(light, 'p.meta').index));
+  assert.ok(!contrastIndexes.includes(gradientText.index), 'no contrast for gradient text');
+  assert.ok(!contrastIndexes.includes(clearText.index), 'no contrast for transparent text');
   assert.deepEqual(
     [getNode(light, 'p.below').textInfo!.color, getNode(light, 'p.below').textInfo!.background],
     ['#333333', '#f0f0f0'],

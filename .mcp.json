@@ -1,5 +1,5 @@
 {
   "mcpServers": {
-    "pxtree": { "command": "npx", "args": ["-y", "pxtree", "mcp"] }
+    "pxtree": { "command": "npx", "args": ["-y", "pxtree@latest", "mcp"] }
   }
 }

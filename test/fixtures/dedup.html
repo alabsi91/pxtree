@@ -33,6 +33,9 @@
       .badge {
         width: 120px;
       }
+      .faint {
+        color: #b0b0b0;
+      }
       .outer,
       .inner {
         width: 200px;
@@ -69,6 +72,7 @@
       <li class="badge">Hot</li>
       <li class="badge">Old</li>
     </ul>
+    <ul class="faint-list"></ul>
     <div class="outer">
       <div class="inner">
         <a class="cta" href="#start">Get started</a>
@@ -76,13 +80,19 @@
     </div>
     <script>
       const similarList = document.querySelector('.similar');
+      const faintList = document.querySelector('.faint-list');
 
       for (let rowNumber = 1; rowNumber <= 30; rowNumber++) {
         const row = document.createElement('li');
+        const faintRow = document.createElement('li');
 
         row.className = 'row';
         row.textContent = `Row ${rowNumber}`;
         similarList.append(row);
+
+        faintRow.className = 'faint';
+        faintRow.textContent = `Faint row ${rowNumber}`;
+        faintList.append(faintRow);
       }
     </script>
   </body>

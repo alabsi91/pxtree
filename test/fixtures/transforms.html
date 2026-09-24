@@ -12,6 +12,8 @@
       .moved { translate: 40px 10px; }
       .both { transform: rotate(10deg) scale(2); }
       .spinner-button { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; transform: rotate(90deg); }
+      .padded-scale { width: 100px; padding: 10px; border: 2px solid #333; background: #eee; scale: 2; transform-origin: 0 0; margin-bottom: 140px; }
+      .inside-scale { height: 20px; background: #333; }
       .spinner-button span { display: block; width: 24px; height: 18px; background: #333; }
     </style>
   </head>
@@ -21,6 +23,7 @@
     <div class="box turned"></div>
     <div class="box moved"></div>
     <div class="box both"></div>
+    <div class="padded-scale"><div class="inside-scale"></div></div>
     <button class="spinner-button"><span></span></button>
   </body>
 </html>

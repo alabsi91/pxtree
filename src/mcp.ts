@@ -1,11 +1,13 @@
+import { existsSync, realpathSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { createSession, format, readingGuideText, type MeasureOptions, type Session } from './index.ts';
+import { createSession, format, getTargetUrl, readingGuideText, type MeasureOptions, type Session } from './index.ts';
 
 const measureToolDescription = `Measures how a webpage actually renders in headless Chromium and returns it as compact text: a facts line, changes since the last run, a summary of findings, then one line per element as an indented tree.
 
@@ -13,15 +15,27 @@ Findings are measurements that passed a threshold, never verdicts. Judge each on
 
 Tree line: name "text" WxH @x,y [tags] [!! findings] ×N. WxH is the border box after transforms. @x,y is from the parent's content box, x from the start edge.
 
-Parameters: target (URL, localhost:5173-style host, or HTML file path), viewports, schemes, scroll, element, children, colors, wait, script (Playwright page code), screenshot, timeout, diff, summary (no tree), changes (facts and since last run only).
+Parameters: target (URL, localhost:5173-style host, or HTML file path), viewports, schemes, scroll, element, children, colors, wait, script (Playwright page code), screenshot, timeout, diff, report (tree, findings for only the lines with findings, summary without the tree, changes, or none), aria (adds the accessibility tree: names, roles, states). One call can return the report, the aria tree and a screenshot together.
 
 Call the guide tool once before the first measure to learn the tags and findings.`;
 
 const guideToolDescription = 'Returns the pxtree reading guide: every flag, the output grammar, every tag and finding, and the limits. Call it once before the first measure.';
 
+const serverInstructions = `Run measure after every CSS or markup change. Pass the widths that matter when something reflows, and both schemes when a color changed. Findings are measurements, not verdicts: judge each against the code. Once you judge a finding to be the design, say so once and never mention it again. Never paste the output to the user.`;
+
+const maxViewportSide = 10000;
+const maxViewportCount = 10;
+const maxTimeoutMs = 120000;
+
+const viewportSideSchema = z.number().int().min(1).max(maxViewportSide);
+
 const measureInputSchema = {
-  target: z.string().describe('URL, host like localhost:5173, or HTML file path'),
-  viewports: z.array(z.object({ width: z.number().int().positive(), height: z.number().int().positive() })).optional().describe('Default [{ width: 1280, height: 800 }]'),
+  target: z.string().describe('URL, host like localhost:5173, or HTML file path under the working directory'),
+  viewports: z
+    .array(z.object({ width: viewportSideSchema, height: viewportSideSchema }))
+    .max(maxViewportCount)
+    .optional()
+    .describe('Default [{ width: 1280, height: 800 }]'),
   schemes: z.array(z.enum(['light', 'dark'])).optional().describe('prefers-color-scheme per run. Default ["light"]'),
   scroll: z.union([z.object({ x: z.number(), y: z.number() }), z.string()]).optional().describe('Window scroll coordinates, or a selector to scroll to the top'),
   element: z.string().optional().describe('Print only elements matching this selector and their ancestor lines'),
@@ -30,10 +44,13 @@ const measureInputSchema = {
   wait: z.union([z.number().nonnegative(), z.string()]).optional().describe('After the script: milliseconds to sleep, or a selector to wait for'),
   script: z.string().optional().describe('Body of async (page) => {} run with the Playwright page before measuring'),
   screenshot: z.boolean().optional().describe('Save a PNG per run under the OS temp directory and return its path'),
-  timeout: z.number().positive().optional().describe('Milliseconds to reach DOMContentLoaded. Default 30000'),
+  timeout: z.number().positive().max(maxTimeoutMs).optional().describe('Milliseconds to reach DOMContentLoaded. Default 30000'),
   diff: z.boolean().optional().describe('Compare with the previous run of the same target and settings. Default true'),
-  summary: z.boolean().optional().describe('Print the facts line, since last run and summary, without the tree'),
-  changes: z.boolean().optional().describe('Print only the facts line and since last run'),
+  report: z
+    .enum(['tree', 'findings', 'summary', 'changes', 'none'])
+    .optional()
+    .describe('tree: everything. findings: only lines with findings and their ancestors. summary: no tree. changes: facts line and since last run. none: facts line only. Default tree'),
+  aria: z.boolean().optional().describe("Add Playwright's aria snapshot of the page, or of each element match, after the report"),
 };
 
 type MeasureInput = z.infer<z.ZodObject<typeof measureInputSchema>>;
@@ -48,6 +65,8 @@ async function createMeasureOptions(input: MeasureInput): Promise<MeasureOptions
     wait: input.wait,
     script: input.script,
     timeoutMs: input.timeout,
+    shouldCaptureAriaSnapshot: input.aria,
+    shouldMeasurePage: input.report !== 'none',
   };
 
   if (input.diff === false) {
@@ -62,14 +81,37 @@ async function createMeasureOptions(input: MeasureInput): Promise<MeasureOptions
   return measureOptions;
 }
 
+/** A file target must stay inside the working directory, symlinks resolved. Other targets always pass. */
+function isAllowedTarget(target: string): boolean {
+  const targetUrl = getTargetUrl(target);
+  if (!targetUrl.startsWith('file:')) {
+    return true;
+  }
+
+  const getRealPath = (path: string) => (existsSync(path) ? realpathSync(path) : resolve(path));
+  const relativePath = relative(getRealPath(process.cwd()), getRealPath(fileURLToPath(targetUrl)));
+
+  const isOutside = relativePath === '..' || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath);
+
+  return !isOutside;
+}
+
 function registerMeasureTool(server: McpServer, session: Session): void {
   server.registerTool('measure', { description: measureToolDescription, inputSchema: measureInputSchema }, async (input) => {
+    if (input.report === 'none' && input.aria !== true && input.screenshot !== true) {
+      return { isError: true, content: [{ type: 'text', text: 'report none prints nothing without aria or screenshot' }] };
+    }
+
+    if (!isAllowedTarget(input.target)) {
+      return { isError: true, content: [{ type: 'text', text: `file target outside the working directory: ${input.target}` }] };
+    }
+
     const result = await session.measure(input.target, await createMeasureOptions(input));
     if (result.error !== null) {
       return { isError: true, content: [{ type: 'text', text: result.error.message }] };
     }
 
-    const reportText = format(result, { shouldShowColors: input.colors, isSummaryOnly: input.summary, isChangesOnly: input.changes });
+    const reportText = format(result, { shouldShowColors: input.colors, report: input.report });
     const reportContent = [{ type: 'text' as const, text: reportText }];
     const screenshotPaths = result.runs.flatMap((run) => (run.screenshotPath === null ? [] : [run.screenshotPath]));
     if (screenshotPaths.length > 0) {
@@ -88,7 +130,7 @@ function registerGuideTool(server: McpServer): void {
 export async function runMcpServer(): Promise<void> {
   const session = await createSession();
   const packageVersion = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
-  const server = new McpServer({ name: 'pxtree', version: packageVersion });
+  const server = new McpServer({ name: 'pxtree', version: packageVersion }, { instructions: serverInstructions });
 
   registerMeasureTool(server, session);
   registerGuideTool(server);

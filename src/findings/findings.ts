@@ -31,7 +31,10 @@ export const findingKindOrder: FindingKind[] = [
   'off-center',
   'text-off-center',
   'tops-across-siblings',
+  'starts-across-siblings',
   'wider',
+  'taller',
+  'shorter',
   'sibling-gaps',
   'text-truncated',
   'contrast',
@@ -737,7 +740,7 @@ function getTextOffCenterFindings(context: AnalysisContext): Finding[] {
  * Rows of two or more shown siblings of one sibling group that sit side by side. A sibling joins a row when its top is
  * within 1 px of the first member's top or above that member's bottom. Members are in tree order.
  */
-function getSiblingGroupRows(context: AnalysisContext, childIndexes: number[]): MeasuredNode[][] {
+function getChildrenByGroupName(context: AnalysisContext, childIndexes: number[]): Map<string, MeasuredNode[]> {
   const childrenByGroupName = new Map<string, MeasuredNode[]>();
 
   for (const index of childIndexes) {
@@ -751,6 +754,10 @@ function getSiblingGroupRows(context: AnalysisContext, childIndexes: number[]): 
     childrenByGroupName.set(groupName, sameGroupChildren);
   }
 
+  return childrenByGroupName;
+}
+
+function getSiblingGroupRows(childrenByGroupName: Map<string, MeasuredNode[]>): MeasuredNode[][] {
   const siblingGroupRows: MeasuredNode[][] = [];
 
   for (const sameGroupChildren of childrenByGroupName.values()) {
@@ -775,6 +782,24 @@ function getSiblingGroupRows(context: AnalysisContext, childIndexes: number[]): 
   }
 
   return siblingGroupRows.filter((row) => row.length >= 2).map((row) => row.sort((first, second) => first.index - second.index));
+}
+
+/** Sibling groups of two or more whose members all sit below each other, none side by side. Members are in tree order. */
+function getSiblingGroupColumns(childrenByGroupName: Map<string, MeasuredNode[]>): MeasuredNode[][] {
+  const siblingGroupColumns: MeasuredNode[][] = [];
+
+  for (const sameGroupChildren of childrenByGroupName.values()) {
+    if (sameGroupChildren.length < 2) continue;
+
+    const childrenByTop = [...sameGroupChildren].sort((first, second) => first.rect.y - second.rect.y);
+    const isStacked = childrenByTop.slice(1).every((child, position) => child.rect.y >= getBottom(childrenByTop[position].rect) - 1);
+
+    if (isStacked) {
+      siblingGroupColumns.push(sameGroupChildren);
+    }
+  }
+
+  return siblingGroupColumns;
 }
 
 /**
@@ -857,15 +882,88 @@ function getTopsAcrossSiblingsFindings(context: AnalysisContext, parent: Measure
   return findings;
 }
 
-/** The width shared by at least half of the row within 1 px, or null. */
-function getSharedWidth(row: MeasuredNode[]): number | null {
-  const memberWidths = row.map((member) => member.rect.width).sort((first, second) => first - second);
+/** Start, center and end of a rect along the inline direction, measured from `referenceStart` toward the end edge. */
+function getInlineLines(rect: Rect, referenceStart: number, direction: 'ltr' | 'rtl'): { start: number; center: number; end: number } {
+  const start = direction === 'rtl' ? referenceStart - getRight(rect) : rect.x - referenceStart;
+
+  return { start, center: start + rect.width / 2, end: start + rect.width };
+}
+
+/** Starts relative to each reference start, when the starts, the centers and the ends all spread by 2 px or more. Otherwise null. */
+function getSpreadStarts(
+  nodes: MeasuredNode[],
+  indexes: number[],
+  referenceStarts: number[],
+  direction: 'ltr' | 'rtl',
+): { min: number; max: number } | null {
+  const inlineLines = indexes.map((index, position) => getInlineLines(nodes[index].rect, referenceStarts[position], direction));
+  const startSpread = getSpread(inlineLines.map((lines) => lines.start));
+  const centerSpread = getSpread(inlineLines.map((lines) => lines.center));
+  const endSpread = getSpread(inlineLines.map((lines) => lines.end));
+  const isSharingALine = [startSpread, centerSpread, endSpread].some((spread) => spread.max - spread.min < 2);
+
+  return isSharingALine ? null : startSpread;
+}
+
+function getInlineStartEdge(rect: Rect, direction: 'ltr' | 'rtl'): number {
+  return direction === 'rtl' ? getRight(rect) : rect.x;
+}
+
+function createStartsAcrossSiblingsFinding(parent: MeasuredNode, name: string, startSpread: { min: number; max: number }): Finding {
+  const startRangeText = `${roundPixels(startSpread.min)}..${roundPixels(startSpread.max)}`;
+
+  return createFinding({ kind: 'starts-across-siblings', nodeIndex: parent.index, template: `${name} starts ${startRangeText} across siblings` });
+}
+
+/**
+ * The inline twin of tops across siblings, for siblings stacked in a column. Up to two findings per column: one for the
+ * members' own starts in the parent's content box, one for the first descendant whose starts spread across the members.
+ * Descendants count only when every member has the same shape, the same relative paths, like a column of form fields.
+ * Inline boxes are skipped, because they start where the text before them ends.
+ */
+function getStartsAcrossSiblingsFindings(context: AnalysisContext, parent: MeasuredNode, column: MeasuredNode[]): Finding[] {
+  const findings: Finding[] = [];
+  const direction = parent.direction;
+  const members = column.slice(0, maxAlignmentGroupMembers);
+  const memberIndexes = members.map((member) => member.index);
+  const parentContentStart = getInlineStartEdge(getContentBox(parent), direction);
+  const memberStartSpread = getSpreadStarts(context.nodes, memberIndexes, members.map(() => parentContentStart), direction);
+  if (memberStartSpread !== null) {
+    findings.push(createStartsAcrossSiblingsFinding(parent, context.siblingGroupNames[members[0].index], memberStartSpread));
+  }
+
+  const memberStarts = members.map((member) => getInlineStartEdge(member.rect, direction));
+  const descendantIndexByPathPerMember = members.map((member) => getDescendantIndexByRelativePath(context.nodes, member));
+  const firstMemberShape = [...descendantIndexByPathPerMember[0].keys()].join(',');
+  const hasSameShape = descendantIndexByPathPerMember.every((descendantIndexByPath) => [...descendantIndexByPath.keys()].join(',') === firstMemberShape);
+  if (!hasSameShape) {
+    return findings;
+  }
+
+  for (const [path, firstDescendantIndex] of descendantIndexByPathPerMember[0]) {
+    const descendantIndexes = descendantIndexByPathPerMember.map((descendantIndexByPath) => descendantIndexByPath.get(path)!);
+    const isEveryDescendantPlaced = descendantIndexes.every((index) => !isInlineBox(context.nodes[index]));
+    if (!isEveryDescendantPlaced) continue;
+
+    const descendantStartSpread = getSpreadStarts(context.nodes, descendantIndexes, memberStarts, direction);
+    if (descendantStartSpread === null) continue;
+
+    findings.push(createStartsAcrossSiblingsFinding(parent, context.nodes[firstDescendantIndex].name, descendantStartSpread));
+    break;
+  }
+
+  return findings;
+}
+
+/** The size shared by at least half of the sizes within 1 px, or null. */
+function getSharedSize(sizes: number[]): number | null {
+  const sortedSizes = [...sizes].sort((first, second) => first - second);
   let windowStart = 0;
   let bestWindowStart = 0;
   let bestWindowSize = 0;
 
-  for (let windowEnd = 0; windowEnd < memberWidths.length; windowEnd++) {
-    while (memberWidths[windowEnd] - memberWidths[windowStart] > 1) {
+  for (let windowEnd = 0; windowEnd < sortedSizes.length; windowEnd++) {
+    while (sortedSizes[windowEnd] - sortedSizes[windowStart] > 1) {
       windowStart++;
     }
 
@@ -875,16 +973,16 @@ function getSharedWidth(row: MeasuredNode[]): number | null {
     }
   }
 
-  if (bestWindowSize * 2 < memberWidths.length) {
+  if (bestWindowSize * 2 < sortedSizes.length) {
     return null;
   }
 
-  return memberWidths[bestWindowStart + Math.floor(bestWindowSize / 2)];
+  return sortedSizes[bestWindowStart + Math.floor(bestWindowSize / 2)];
 }
 
 function getWiderFindings(context: AnalysisContext, row: MeasuredNode[]): Finding[] {
   const findings: Finding[] = [];
-  const sharedWidth = row.length >= 3 ? getSharedWidth(row) : null;
+  const sharedWidth = row.length >= 3 ? getSharedSize(row.map((member) => member.rect.width)) : null;
   if (sharedWidth === null) {
     return findings;
   }
@@ -901,12 +999,39 @@ function getWiderFindings(context: AnalysisContext, row: MeasuredNode[]): Findin
   return findings;
 }
 
+/** The height twin of wider. It prints both ways: `taller than` and `shorter than`. */
+function getHeightFindings(context: AnalysisContext, row: MeasuredNode[]): Finding[] {
+  const findings: Finding[] = [];
+  const sharedHeight = row.length >= 3 ? getSharedSize(row.map((member) => member.rect.height)) : null;
+  if (sharedHeight === null) {
+    return findings;
+  }
+
+  for (const member of row) {
+    const heightDifference = member.rect.height - sharedHeight;
+    const groupName = context.siblingGroupNames[member.index];
+
+    if (Math.abs(heightDifference) < 2 || isTransformed(member)) continue;
+
+    const kind = heightDifference > 0 ? 'taller' : 'shorter';
+    findings.push(createFinding({ kind, nodeIndex: member.index, template: `{n} ${kind} than ${groupName}`, amount: Math.abs(heightDifference) }));
+  }
+
+  return findings;
+}
+
 function getRowFindings(context: AnalysisContext): Finding[] {
   const findings: Finding[] = [];
 
   for (const parent of context.nodes) {
-    for (const row of getSiblingGroupRows(context, context.childIndexesByParent[parent.index])) {
-      findings.push(...getTopsAcrossSiblingsFindings(context, parent, row), ...getWiderFindings(context, row));
+    const childrenByGroupName = getChildrenByGroupName(context, context.childIndexesByParent[parent.index]);
+
+    for (const row of getSiblingGroupRows(childrenByGroupName)) {
+      findings.push(...getTopsAcrossSiblingsFindings(context, parent, row), ...getWiderFindings(context, row), ...getHeightFindings(context, row));
+    }
+
+    for (const column of getSiblingGroupColumns(childrenByGroupName)) {
+      findings.push(...getStartsAcrossSiblingsFindings(context, parent, column));
     }
   }
 
@@ -1018,7 +1143,7 @@ function getContrastFindings(context: AnalysisContext): Finding[] {
 
   for (const node of context.nodes) {
     const { textInfo } = node;
-    if (!isShown(node) || !textInfo || textInfo.background === null || node.isDisabled) continue;
+    if (!isShown(node) || !textInfo || textInfo.color === null || textInfo.background === null || node.isDisabled) continue;
 
     const ratio = getContrastRatio(textInfo.color, textInfo.background);
     const minimumRatio = textInfo.isLarge ? 3 : 4.5;

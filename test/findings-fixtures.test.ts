@@ -126,6 +126,22 @@ describe('alignment.html', () => {
   test('buttons with padded text do not report text off center', () => {
     assert.ok(!reportLines.some((line) => line.includes('text off center')), reportLines.join('\n'));
   });
+
+  test('a column of inputs with one nudged 3 px', () => {
+    assert.match(findLine(reportLines, 'form.fields'), /\[!! input\.field starts 0\.\.3 across siblings\]/);
+  });
+
+  test('a right-aligned column does not report starts, and neither do cousins in lists of other shapes', () => {
+    assert.equal(getFindingsPart(findLine(reportLines, 'div.prices')), '');
+    assert.equal(getFindingsPart(findLine(reportLines, 'body')), '');
+  });
+
+  test('one shorter tile in a row', () => {
+    const tileLines = reportLines.filter((line) => line.trimStart().startsWith('div.tile') && line.includes('shorter than div.tile'));
+
+    assert.equal(tileLines.length, 1, reportLines.join('\n'));
+    assert.match(findLine(reportLines, 'div.tile.short'), /\[!! 20 shorter than div\.tile\]/);
+  });
 });
 
 describe('overlaps.html', () => {

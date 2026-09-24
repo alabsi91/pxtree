@@ -451,9 +451,10 @@ function fillTextColors(
       ? stackBackgrounds.get(walkedNode.record.index)!
       : getAncestorBackground(walk, walkedNode, canvasLayer);
     const background = partialBackground ? finishOverBase(partialBackground, baseBytes) : null;
-    const colorBytes = getColorBytes(walkedNode.style.color);
+    const fillBytes = getColorBytes(walkedNode.style.webkitTextFillColor);
+    const isFillTransparent = fillBytes[3] === 0;
 
-    textInfo.color = formatHex(blendColorOver(colorBytes, walkedNode.cumulativeOpacity, background ?? baseBytes));
+    textInfo.color = isFillTransparent ? null : formatHex(blendColorOver(fillBytes, walkedNode.cumulativeOpacity, background ?? baseBytes));
     textInfo.background = background ? formatHex(background) : null;
   }
 }

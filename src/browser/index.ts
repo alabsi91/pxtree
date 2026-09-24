@@ -1,4 +1,4 @@
-import type { MeasurePageOptions, PageMeasurement, PxtreeInPage } from '../types.ts';
+import type { FontRequest, MeasurePageOptions, PageMeasurement, PxtreeInPage } from '../types.ts';
 import { measureCoverageAndColors } from './coverage.ts';
 import { getEntriesIntersection, getStuckStates, roundToHundredth } from './geometry.ts';
 import { revealByScrolling, settlePage } from './settle.ts';
@@ -54,16 +54,61 @@ function getPaintedTo(walk: WalkResult): number {
   return roundToHundredth(paintedTo);
 }
 
+function getUnquotedFamily(family: string): string {
+  return family.trim().replace(/^["']|["']$/g, '');
+}
+
 function getFailedFontFamilies(): string[] {
   const failedFamilies = new Set<string>();
 
   for (const fontFace of document.fonts) {
     if (fontFace.status === 'error') {
-      failedFamilies.add(fontFace.family.replace(/^["']|["']$/g, ''));
+      failedFamilies.add(getUnquotedFamily(fontFace.family));
     }
   }
 
   return [...failedFamilies];
+}
+
+const genericFamilyPattern = /^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-[a-z-]+|math|emoji|fangsong)$/i;
+
+/** Apple's names for system-ui. Other platforms skip them. */
+const appleSystemFamilyPattern = /^(-apple-system|BlinkMacSystemFont)$/i;
+
+function getFontSampleElements(options: { maxStackCount: number }): Element[] {
+  const elementByStack = new Map<string, Element>();
+  const textWalker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+
+  while (textWalker.nextNode() && elementByStack.size < options.maxStackCount) {
+    const textNode = textWalker.currentNode as Text;
+    const parentElement = textNode.parentElement;
+    if (!parentElement || !/\S/.test(textNode.data)) continue;
+
+    const fontStack = getComputedStyle(parentElement).fontFamily;
+    if (!elementByStack.has(fontStack) && parentElement.checkVisibility()) {
+      elementByStack.set(fontStack, parentElement);
+    }
+  }
+
+  return [...elementByStack.values()];
+}
+
+function getFontRequests(elements: Element[]): FontRequest[] {
+  const fontFaces = [...document.fonts];
+
+  return elements.map((element) => {
+    const stackFamilies = getComputedStyle(element).fontFamily.split(',').map(getUnquotedFamily);
+    const firstFamily = stackFamilies.find((family) => !appleSystemFamilyPattern.test(family)) ?? '';
+    const requestedFamily = firstFamily === '' || genericFamilyPattern.test(firstFamily) ? null : firstFamily;
+    const requestedFaces =
+      requestedFamily === null ? [] : fontFaces.filter((fontFace) => getUnquotedFamily(fontFace.family).toLowerCase() === requestedFamily.toLowerCase());
+
+    return {
+      requestedFamily,
+      isWebFont: requestedFaces.length > 0,
+      isWebFontLoaded: requestedFaces.some((fontFace) => fontFace.status === 'loaded'),
+    };
+  });
 }
 
 function measurePage(options: MeasurePageOptions): PageMeasurement {
@@ -104,5 +149,5 @@ function measurePage(options: MeasurePageOptions): PageMeasurement {
 
 if (!globalThis.__pxtree) {
   installAttachShadowHook();
-  globalThis.__pxtree = { measurePage, settlePage, revealByScrolling };
+  globalThis.__pxtree = { measurePage, settlePage, revealByScrolling, getFontSampleElements, getFontRequests };
 }

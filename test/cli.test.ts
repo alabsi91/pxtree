@@ -83,6 +83,25 @@ test('a viewport with a capital X measures', async () => {
   assert.ok(output.stdout.startsWith('400x300 light'), output.stdout);
 });
 
+test('a width alone gets its device height, or 800', async () => {
+  const output = await runCli([stateFixturePath, '--no-diff', '--report', 'none', '--aria', '--viewport', '390,1000']);
+  const factsLines = output.stdout.split('\n').filter((line) => /^\d+x\d+ light/.test(line));
+
+  assert.equal(output.exitCode, 0, output.stderr);
+  assert.deepEqual(factsLines.map((line) => line.split(' ')[0]), ['390x844', '1000x800']);
+});
+
+test('a directory target exits 1 with one line', async () => {
+  assertSingleErrorLine(await runCli(['test/fixtures']), 1, 'target is a directory: test/fixtures');
+});
+
+test('a file path with a query measures the file', async () => {
+  const output = await runCli([`${stateFixturePath}?tab=2`, '--no-diff', '--report', 'findings']);
+
+  assert.equal(output.exitCode, 0, output.stderr);
+  assert.ok(output.stdout.startsWith('1280x800 light dpr 1 ltr'), output.stdout);
+});
+
 test('--element with no match prints the report and exits 2 with the no match line last', async () => {
   const output = await runCli([stateFixturePath, '--no-diff', '--element', '.no-such-element']);
 
@@ -165,10 +184,19 @@ test('--out writes both files and prints only facts, summary and paths', async (
   assert.equal(JSON.parse(readFileSync(jsonPath, 'utf8')).runs.length, 1);
 });
 
-test('--summary prints no tree and --changes prints only the facts line and since last run', async () => {
-  const summaryOutput = await runCli([stateFixturePath, '--no-diff', '--summary']);
+test('--report tree is the default and prints the tree', async () => {
+  const defaultOutput = await runCli([stateFixturePath, '--no-diff']);
+  const treeOutput = await runCli([stateFixturePath, '--no-diff', '--report', 'tree']);
+
+  assert.equal(treeOutput.exitCode, 0, treeOutput.stderr);
+  assert.ok(treeOutput.stdout.split('\n').some((line) => line.startsWith('body ')), treeOutput.stdout);
+  assert.equal(treeOutput.stdout, defaultOutput.stdout);
+});
+
+test('--report summary prints no tree and --report changes prints only the facts line and since last run', async () => {
+  const summaryOutput = await runCli([stateFixturePath, '--no-diff', '--report', 'summary']);
   const summaryLines = summaryOutput.stdout.trimEnd().split('\n');
-  const changesOutput = await runCli([stateFixturePath, '--no-diff', '--changes']);
+  const changesOutput = await runCli([stateFixturePath, '--no-diff', '--report', 'changes']);
 
   assert.equal(summaryOutput.exitCode, 0, summaryOutput.stderr);
   assert.ok(summaryLines[0].startsWith('1280x800 light'), summaryOutput.stdout);
@@ -178,8 +206,22 @@ test('--summary prints no tree and --changes prints only the facts line and sinc
   assert.deepEqual(changesOutput.stdout.trimEnd().split('\n'), [summaryLines[0]]);
 });
 
-test('--summary with --changes exits 1', async () => {
-  assertSingleErrorLine(await runCli([stateFixturePath, '--summary', '--changes']), 1, '--summary and --changes cannot be used together');
+test('--report none --aria prints only the facts line and the aria tree', async () => {
+  const output = await runCli([stateFixturePath, '--no-diff', '--report', 'none', '--aria']);
+  const outputLines = output.stdout.trimEnd().split('\n');
+
+  assert.equal(output.exitCode, 0, output.stderr);
+  assert.equal(outputLines[0], '1280x800 light dpr 1 not measured');
+  assert.deepEqual(outputLines.slice(1, 3), ['aria:', '- button "Menu"']);
+  assert.ok(outputLines.slice(3).every((line) => line.startsWith('- ') || line.startsWith('  ')), output.stdout);
+});
+
+test('--report none without --aria or --screenshot exits 1', async () => {
+  assertSingleErrorLine(await runCli([stateFixturePath, '--report', 'none']), 1, '--report none prints nothing without --aria or --screenshot');
+});
+
+test('a bad --report exits 1', async () => {
+  assertSingleErrorLine(await runCli([stateFixturePath, '--report', 'full']), 1, 'bad --report: full');
 });
 
 test('guide prints the reading guide and writes no files', async () => {

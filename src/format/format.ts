@@ -1,5 +1,6 @@
 import type {
   Analysis,
+  ColorScheme,
   Finding,
   FormatOptions,
   Gaps,
@@ -7,11 +8,12 @@ import type {
   MeasuredNode,
   PageMeasurement,
   Rect,
+  ReportDetail,
   RunResult,
   ScrollInfo,
   TextInfo,
 } from '../types.ts';
-import { getBottom, getIntersection, getPaddingBox, getRight, hasBoxInk, roundPixels } from '../findings/layout.ts';
+import { getBottom, getIntersection, getPaddingBox, getRight, getSiblingGroupNames, hasBoxInk, roundPixels } from '../findings/layout.ts';
 import { createSnapshot, formatDiff, getNodePaths } from './diff.ts';
 import { createNameCounts, formatSummary, getFindingCountText, getShortName } from './summary.ts';
 
@@ -31,11 +33,14 @@ export interface PageTree {
   findingsByNode: Finding[][];
   findingCountBefore: number[];
   hasShownDescendant: boolean[];
+  siblingGroupNames: string[];
 }
 
 interface TreeView {
   tree: PageTree;
   shouldShowColors: boolean;
+  /** Lines without findings print only their names. */
+  isFindingsView: boolean;
   printedIndexes: Set<number> | null;
   matchedIndexes: Set<number>;
   collapsedBehindModalIndex: number | null;
@@ -43,44 +48,34 @@ interface TreeView {
   signatureByNode: Map<number, string>;
 }
 
-function getReportDetail(options: FormatOptions): 'tree' | 'summary' | 'changes' {
-  if (options.isChangesOnly) {
-    return 'changes';
-  }
-
-  return options.isSummaryOnly ? 'summary' : 'tree';
+/**
+ * Makes text that a page controls safe to print on a report line. Control characters and line separators go away.
+ * Quotes, brackets and `›` turn into look-alikes, so the text cannot forge a tag, a finding or a tree line.
+ */
+export function getPrintableText(pageText: string): string {
+  return pageText
+    .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, '')
+    .replaceAll('"', "'")
+    .replaceAll('[', '(')
+    .replaceAll(']', ')')
+    .replaceAll('›', '>');
 }
 
 /** Formats a measure result as the text report that the CLI prints. By default it prints the full tree without colors. */
 export function format(result: MeasureResult, options: FormatOptions = {}): string {
   const shouldShowColors = options.shouldShowColors ?? false;
-  const reportDetail = getReportDetail(options);
-  const pageTrees = result.runs.map((run) => createPageTree(run.page, run.analysis));
+  const reportDetail = options.report ?? 'tree';
+  const pageTrees = result.runs.map((run) => (run.page === null || run.analysis === null ? null : createPageTree(run.page, run.analysis)));
   const runBlocks = result.runs.map((run, runPosition) => {
-    const factsAndChangesLines = [getFactsLine(run), ...formatDiff(run.previousSnapshot, createSnapshot(run.page, run.analysis), run.isCacheEnabled)];
+    const reportLines = formatRunReport(result.runs, pageTrees, runPosition, reportDetail, shouldShowColors);
 
-    if (reportDetail === 'changes') {
-      return factsAndChangesLines.join('\n');
-    }
-
-    const summaryLines = formatSummary(run.page, run.analysis);
-
-    if (reportDetail === 'summary') {
-      return [...factsAndChangesLines, ...summaryLines].join('\n');
-    }
-
-    const sameTreePosition = getSameTreeRunPosition(result.runs, pageTrees, runPosition);
-    const sameTree =
-      sameTreePosition === null ? null : { tree: pageTrees[sameTreePosition], colorScheme: result.runs[sameTreePosition].colorScheme };
-    const treeLines =
-      sameTree === null
-        ? formatTree(pageTrees[runPosition], run.shouldIncludeChildren, shouldShowColors)
-        : formatTreeDifferences(pageTrees[runPosition], sameTree.tree, sameTree.colorScheme, shouldShowColors);
-
-    return [...factsAndChangesLines, ...summaryLines, ...treeLines].join('\n');
+    return [...reportLines, ...formatAriaSection(result.runs, runPosition)].join('\n');
   });
-  const shouldPrintAcrossRuns = result.runs.length > 1 && reportDetail !== 'changes';
-  const acrossLines = shouldPrintAcrossRuns ? formatAcrossRuns(result.runs) : [];
+  const measuredPageTrees = pageTrees.filter((pageTree) => pageTree !== null);
+  const isEveryRunMeasured = measuredPageTrees.length === pageTrees.length;
+  const isAcrossReport = reportDetail === 'tree' || reportDetail === 'findings' || reportDetail === 'summary';
+  const shouldPrintAcrossRuns = result.runs.length > 1 && isEveryRunMeasured && isAcrossReport;
+  const acrossLines = shouldPrintAcrossRuns ? formatAcrossRuns(result.runs, measuredPageTrees) : [];
   if (acrossLines.length > 0) {
     runBlocks.push(acrossLines.join('\n'));
   }
@@ -88,24 +83,110 @@ export function format(result: MeasureResult, options: FormatOptions = {}): stri
   return runBlocks.join('\n\n');
 }
 
+function formatRunReport(
+  runs: RunResult[],
+  pageTrees: Array<PageTree | null>,
+  runPosition: number,
+  reportDetail: ReportDetail,
+  shouldShowColors: boolean,
+): string[] {
+  const run = runs[runPosition];
+  const pageTree = pageTrees[runPosition];
+  const factsLine = getFactsLine(run, pageTree);
+
+  if (pageTree === null || reportDetail === 'none') {
+    return [factsLine];
+  }
+
+  const changesLines = formatDiff(run.previousSnapshot, createSnapshot(pageTree.page, pageTree.analysis), run.isCacheEnabled);
+
+  if (reportDetail === 'changes') {
+    return [factsLine, ...changesLines];
+  }
+
+  const summaryLines = formatSummary(pageTree.page, pageTree.analysis);
+
+  if (reportDetail === 'summary') {
+    return [factsLine, ...changesLines, ...summaryLines];
+  }
+
+  const sameTreeRun = getSameTreeRun(runs, pageTrees, runPosition);
+  const treeLines =
+    sameTreeRun === null
+      ? formatTree(pageTree, run.shouldIncludeChildren, shouldShowColors, reportDetail === 'findings')
+      : formatTreeDifferences(pageTree, sameTreeRun.pageTree, sameTreeRun.colorScheme, shouldShowColors);
+
+  return [factsLine, ...changesLines, ...summaryLines, ...treeLines];
+}
+
 // ---------- runs that differ only in scheme ----------
 
-/** An earlier run at the same viewport and scroll whose tree matches this one once findings and colors are left out. */
-function getSameTreeRunPosition(runs: RunResult[], pageTrees: PageTree[], runPosition: number): number | null {
-  const run = runs[runPosition];
-  const earlierPosition = runs.findIndex(
-    (earlierRun) =>
-      earlierRun.viewport.width === run.viewport.width &&
-      earlierRun.viewport.height === run.viewport.height &&
-      earlierRun.page.scroll.x === run.page.scroll.x &&
-      earlierRun.page.scroll.y === run.page.scroll.y,
-  );
+function hasSameViewport(firstRun: RunResult, secondRun: RunResult): boolean {
+  return firstRun.viewport.width === secondRun.viewport.width && firstRun.viewport.height === secondRun.viewport.height;
+}
 
-  if (earlierPosition === runPosition || runs[earlierPosition].colorScheme === run.colorScheme) {
+/** An earlier run at the same viewport and scroll whose tree matches this one once findings and colors are left out. */
+function getSameTreeRun(
+  runs: RunResult[],
+  pageTrees: Array<PageTree | null>,
+  runPosition: number,
+): { pageTree: PageTree; colorScheme: ColorScheme } | null {
+  const run = runs[runPosition];
+  const pageTree = pageTrees[runPosition];
+  const earlierPosition = runs.findIndex((earlierRun, earlierRunPosition) => {
+    const earlierPage = pageTrees[earlierRunPosition]?.page;
+    const hasSameScroll = earlierPage?.scroll.x === pageTree?.page.scroll.x && earlierPage?.scroll.y === pageTree?.page.scroll.y;
+
+    return hasSameViewport(earlierRun, run) && hasSameScroll;
+  });
+  const earlierRun = runs[earlierPosition];
+  const earlierTree = pageTrees[earlierPosition];
+
+  if (earlierPosition === runPosition || earlierRun.colorScheme === run.colorScheme) {
     return null;
   }
 
-  return hasSameTreeWithoutFindings(pageTrees[earlierPosition], pageTrees[runPosition]) ? earlierPosition : null;
+  if (pageTree === null || earlierTree === null || !hasSameTreeWithoutFindings(earlierTree, pageTree)) {
+    return null;
+  }
+
+  return { pageTree: earlierTree, colorScheme: earlierRun.colorScheme };
+}
+
+// ---------- aria ----------
+
+/** Each snapshot under its heading. Nothing when every snapshot is empty. `aria: same as light` when an earlier scheme run had the same snapshots. */
+function formatAriaSection(runs: RunResult[], runPosition: number): string[] {
+  const run = runs[runPosition];
+  const ariaSnapshots = run.ariaSnapshots ?? [];
+  const hasAriaText = ariaSnapshots.some((ariaSnapshot) => ariaSnapshot !== '');
+
+  if (!hasAriaText) {
+    return [];
+  }
+
+  const sameAriaRun = runs
+    .slice(0, runPosition)
+    .find(
+      (earlierRun) =>
+        hasSameViewport(earlierRun, run) &&
+        earlierRun.colorScheme !== run.colorScheme &&
+        JSON.stringify(earlierRun.ariaSnapshots) === JSON.stringify(ariaSnapshots),
+    );
+
+  if (sameAriaRun !== undefined) {
+    return [`aria: same as ${sameAriaRun.colorScheme}`];
+  }
+
+  if (ariaSnapshots.length === 1) {
+    return ['aria:', ariaSnapshots[0]];
+  }
+
+  const elementSelector = run.page?.element?.selector;
+
+  return ariaSnapshots.flatMap((ariaSnapshot, matchPosition) =>
+    ariaSnapshot === '' ? [] : [`aria ${elementSelector} match ${matchPosition + 1}:`, ariaSnapshot],
+  );
 }
 
 function getComparableNodeLine(tree: PageTree, index: number): string {
@@ -176,7 +257,9 @@ export function createPageTree(page: PageMeasurement, analysis: Analysis): PageT
     }
   }
 
-  return { page, analysis, rootIndexes, childIndexesByParent, findingsByNode, findingCountBefore, hasShownDescendant };
+  const siblingGroupNames = getSiblingGroupNames(page, childIndexesByParent);
+
+  return { page, analysis, rootIndexes, childIndexesByParent, findingsByNode, findingCountBefore, hasShownDescendant, siblingGroupNames };
 }
 
 function hasFindingInSubtree(tree: PageTree, index: number): boolean {
@@ -191,22 +274,54 @@ function isHiddenWithoutShownDescendant(tree: PageTree, index: number): boolean 
 
 // ---------- facts ----------
 
-function getFactsLine(run: RunResult): string {
-  const page = run.page;
-  const direction = page.direction === 'rtl' ? 'rtl (start is right)' : 'ltr';
-  const factTexts = [
-    `${run.viewport.width}x${run.viewport.height} ${run.colorScheme} dpr ${page.devicePixelRatio} ${direction}`,
-    `scroll ${roundPixels(page.scroll.y)}/${roundPixels(page.scroll.maxY)}`,
-    `page ${roundPixels(page.page.width)}x${roundPixels(page.page.height)} painted to ${roundPixels(page.page.paintedTo)}`,
-  ];
-  const sidewaysPx = roundPixels(page.scroll.maxX);
+function getFactsLine(run: RunResult, pageTree: PageTree | null): string {
+  const runText = `${run.viewport.width}x${run.viewport.height} ${run.colorScheme} dpr ${run.devicePixelRatio}`;
+  const factTexts = [pageTree === null ? `${runText} not measured` : `${runText} ${getPageShapeText(pageTree.page)}`];
 
   if (run.status !== null && (run.status < 200 || run.status >= 300)) {
     factTexts.push(`status ${run.status}`);
   }
 
+  if (run.redirectedUrl !== null) {
+    factTexts.push(`redirected to ${getPrintableText(run.redirectedUrl)}`);
+  }
+
+  if (pageTree !== null) {
+    factTexts.push(...getLayoutFactTexts(pageTree));
+  }
+
+  if (run.settle.stillMovingName !== null) {
+    factTexts.push(`still moving ${run.settle.stillMovingName}`);
+  }
+
+  factTexts.push(...getFontFactTexts(run));
+
+  if (pageTree !== null) {
+    factTexts.push(...getMeasurementLimitFactTexts(pageTree.page));
+  }
+
+  if (run.screenshotPath !== null) {
+    factTexts.push(getScreenshotFactText(run, run.screenshotPath, pageTree?.page ?? null));
+  }
+
+  return factTexts.join(' ');
+}
+
+function getPageShapeText(page: PageMeasurement): string {
+  const direction = page.direction === 'rtl' ? 'rtl (start is right)' : 'ltr';
+  const scrollText = `scroll ${roundPixels(page.scroll.y)}/${roundPixels(page.scroll.maxY)}`;
+  const sizeText = `page ${roundPixels(page.page.width)}x${roundPixels(page.page.height)} painted to ${roundPixels(page.page.paintedTo)}`;
+
+  return `${direction} ${scrollText} ${sizeText}`;
+}
+
+function getLayoutFactTexts(pageTree: PageTree): string[] {
+  const page = pageTree.page;
+  const sidewaysPx = roundPixels(page.scroll.maxX);
+  const factTexts: string[] = [];
+
   if (sidewaysPx >= 1) {
-    const widestPastViewportIndex = getWidestPastViewportIndex(run.analysis);
+    const widestPastViewportIndex = getWidestPastViewportIndex(pageTree.analysis);
     const culpritText = widestPastViewportIndex === null ? '' : ` by ${getShortName(page, widestPastViewportIndex, createNameCounts(page))}`;
 
     factTexts.push(`sideways ${sidewaysPx}${culpritText}`);
@@ -216,17 +331,63 @@ function getFactsLine(run: RunResult): string {
     factTexts.push('scroll locked');
   }
 
+  const innerScrollFactText = getInnerScrollFactText(pageTree);
+  if (innerScrollFactText !== null) {
+    factTexts.push(innerScrollFactText);
+  }
+
   if (page.modalIndex !== null) {
     factTexts.push(`modal ${page.nodes[page.modalIndex].name}`);
   }
 
-  if (run.settle.stillMovingName !== null) {
-    factTexts.push(`still moving ${run.settle.stillMovingName}`);
+  return factTexts;
+}
+
+/** `window does not scroll, main scrolls y 2400 in 800`, for the biggest box that scrolls vertically when the window cannot. */
+function getInnerScrollFactText(pageTree: PageTree): string | null {
+  const page = pageTree.page;
+  if (roundPixels(page.scroll.maxY) >= 1) {
+    return null;
   }
 
-  if (page.failedFontFamilies.length > 0) {
-    factTexts.push(`font failed ${page.failedFontFamilies.join(', ')}`);
+  let biggestScrollerIndex: number | null = null;
+  let biggestScrollerArea = 0;
+
+  for (const node of page.nodes) {
+    const isScrollingY = node.visibility === 'shown' && node.scroll?.axes.some((scrollAxis) => scrollAxis.axis === 'y') === true;
+    const area = node.rect.width * node.rect.height;
+
+    if (isScrollingY && area > biggestScrollerArea) {
+      biggestScrollerIndex = node.index;
+      biggestScrollerArea = area;
+    }
   }
+
+  if (biggestScrollerIndex === null) {
+    return null;
+  }
+
+  const scrollAxis = page.nodes[biggestScrollerIndex].scroll!.axes.find((axis) => axis.axis === 'y')!;
+  const scrollerName = getShortName(page, biggestScrollerIndex, createNameCounts(page));
+
+  return `window does not scroll, ${scrollerName} scrolls y ${roundPixels(scrollAxis.contentSize)} in ${roundPixels(scrollAxis.visibleSize)}`;
+}
+
+/** `font "Inter" not used, drew Arial` per font stack, then the failed web fonts that no such item names. */
+function getFontFactTexts(run: RunResult): string[] {
+  const factTexts = run.fontFallbacks.map((fontFallback) => `font "${fontFallback.requestedFamily}" not used, drew ${fontFallback.drawnFamily}`);
+  const reportedFamilies = new Set(run.fontFallbacks.map((fontFallback) => fontFallback.requestedFamily.toLowerCase()));
+  const failedFamilies = (run.page?.failedFontFamilies ?? []).filter((family) => !reportedFamilies.has(family.toLowerCase()));
+
+  if (failedFamilies.length > 0) {
+    factTexts.push(`font failed ${failedFamilies.join(', ')}`);
+  }
+
+  return factTexts;
+}
+
+function getMeasurementLimitFactTexts(page: PageMeasurement): string[] {
+  const factTexts: string[] = [];
 
   if (page.sampling.isCapped) {
     factTexts.push('coverage sampled partly');
@@ -236,15 +397,18 @@ function getFactsLine(run: RunResult): string {
     factTexts.push(`stopped at ${nodeCapCount} elements`);
   }
 
-  if (run.screenshotPath !== null) {
-    const screenshotSize = getScreenshotSize(page);
-    const renderedMatchCount = page.element?.matchedIndexes.length ?? 1;
-    const unclippedText = renderedMatchCount === 1 ? '' : ` (viewport, selector matched ${renderedMatchCount})`;
+  return factTexts;
+}
 
-    factTexts.push(`screenshot ${run.screenshotPath} ${screenshotSize.width}x${screenshotSize.height}${unclippedText}`);
-  }
+/** Without a measurement the screenshot is the whole viewport. */
+function getScreenshotFactText(run: RunResult, screenshotPath: string, page: PageMeasurement | null): string {
+  const clip = (page === null ? null : getScreenshotClip(page)) ?? { x: 0, y: 0, ...(page?.viewport ?? run.viewport) };
+  const pngWidth = Math.round(clip.width * run.devicePixelRatio);
+  const pngHeight = Math.round(clip.height * run.devicePixelRatio);
+  const renderedMatchCount = page?.element?.matchedIndexes.length ?? 1;
+  const unclippedText = renderedMatchCount === 1 ? '' : ` (viewport, selector matched ${renderedMatchCount})`;
 
-  return factTexts.join(' ');
+  return `screenshot ${screenshotPath} ${pngWidth}x${pngHeight}${unclippedText}`;
 }
 
 function getWidestPastViewportIndex(analysis: Analysis): number | null {
@@ -271,16 +435,6 @@ export function getScreenshotClip(page: PageMeasurement): Rect | null {
   const elementViewportRect = { ...elementRect, x: elementRect.x - page.scroll.x, y: elementRect.y - page.scroll.y };
 
   return getIntersection(elementViewportRect, { x: 0, y: 0, ...page.viewport });
-}
-
-/** Size of the screenshot PNG in device pixels. */
-function getScreenshotSize(page: PageMeasurement): { width: number; height: number } {
-  const clip = getScreenshotClip(page) ?? { x: 0, y: 0, ...page.viewport };
-
-  return {
-    width: Math.round(clip.width * page.devicePixelRatio),
-    height: Math.round(clip.height * page.devicePixelRatio),
-  };
 }
 
 // ---------- tags ----------
@@ -562,8 +716,16 @@ function getTextTag(textInfo: TextInfo, shouldShowColors: boolean): string {
   }
 
   if (shouldShowColors) {
-    textTagParts.push(`${textInfo.color} on ${textInfo.background ?? 'image'}`);
-  } else if (textInfo.background === null) {
+    textTagParts.push(`${textInfo.color ?? 'transparent'} on ${textInfo.background ?? 'image'}`);
+
+    return textTagParts.join(', ');
+  }
+
+  if (textInfo.color === null) {
+    textTagParts.push('fill transparent');
+  }
+
+  if (textInfo.background === null) {
     textTagParts.push('on image');
   }
 
@@ -658,6 +820,15 @@ function createNodeLine(view: TreeView, chainIndexes: number[], depth: number, i
   const x = roundPixels(layout.x);
   const y = roundPixels(layout.y);
   const lineParts = ['  '.repeat(depth) + getChainNamesText(chainIndexes, nodes)];
+  const behindModalText = `[behind modal, ${node.subtreeEnd - index} elements not printed]`;
+
+  if (view.isFindingsView && view.tree.findingsByNode[index].length === 0) {
+    if (index === view.collapsedBehindModalIndex) {
+      lineParts.push(behindModalText);
+    }
+
+    return lineParts.join(' ');
+  }
 
   if (node.text !== '') {
     lineParts.push(JSON.stringify(node.text));
@@ -671,7 +842,7 @@ function createNodeLine(view: TreeView, chainIndexes: number[], depth: number, i
 
   const bracketTexts = getTags(view, index).map((tag) => `[${tag}]`);
   if (index === view.collapsedBehindModalIndex) {
-    bracketTexts.push(`[behind modal, ${node.subtreeEnd - index} elements not printed]`);
+    bracketTexts.push(behindModalText);
   }
 
   bracketTexts.push(getFindingsText(view.tree.findingsByNode[index].map((finding) => finding.text)));
@@ -765,7 +936,71 @@ function createSimilarLine(view: TreeView, foldedIndexes: number[], depth: numbe
   return `${'  '.repeat(depth)}…×${foldedIndexes.length} similar ${foldedNodes[0].name} ${sizeRange}`;
 }
 
+/** The finding texts of a node's subtree with every number taken out. '' when the subtree has no finding. */
+function getNumberlessFindingsText(tree: PageTree, index: number): string {
+  const subtreeEnd = tree.page.nodes[index].subtreeEnd;
+  const findingTexts: string[] = [];
+  if (!hasFindingInSubtree(tree, index)) {
+    return '';
+  }
+
+  for (let subtreeIndex = index; subtreeIndex <= subtreeEnd; subtreeIndex++) {
+    for (const finding of tree.findingsByNode[subtreeIndex]) {
+      findingTexts.push(finding.text.replace(/(?<![\w-])\d+(?:\.\d+)?(?:x\d+)?/g, ''));
+    }
+  }
+
+  return findingTexts.join('; ');
+}
+
+/** How many siblings from `startPosition` on share their sibling group and their findings once numbers are taken out. */
+function getSameFindingsRunLength(view: TreeView, siblingIndexes: number[], startPosition: number): number {
+  const tree = view.tree;
+  const firstIndex = siblingIndexes[startPosition];
+  const findingsText = getNumberlessFindingsText(tree, firstIndex);
+  if (findingsText === '') {
+    return 0;
+  }
+
+  let runEnd = startPosition + 1;
+
+  while (runEnd < siblingIndexes.length) {
+    const index = siblingIndexes[runEnd];
+    const isSameGroup = tree.siblingGroupNames[index] === tree.siblingGroupNames[firstIndex];
+    if (!isSameGroup || view.matchedIndexes.has(index) || getNumberlessFindingsText(tree, index) !== findingsText) break;
+
+    runEnd++;
+  }
+
+  return runEnd - startPosition;
+}
+
+/** A run of 3 or more siblings with the same findings prints its first sibling and one line for the rest. */
 function printSiblings(view: TreeView, siblingIndexes: number[], depth: number, treeLines: string[]): void {
+  let pendingIndexes: number[] = [];
+  let position = 0;
+
+  while (position < siblingIndexes.length) {
+    const sameFindingsRunLength = getSameFindingsRunLength(view, siblingIndexes, position);
+
+    if (sameFindingsRunLength < minimumSimilarRunLength) {
+      pendingIndexes.push(siblingIndexes[position]);
+      position++;
+      continue;
+    }
+
+    printNameRuns(view, pendingIndexes, depth, treeLines);
+    pendingIndexes = [];
+
+    printNode(view, siblingIndexes[position], depth, 1, treeLines);
+    treeLines.push(`${'  '.repeat(depth)}…×${sameFindingsRunLength - 1} similar with the same findings`);
+    position += sameFindingsRunLength;
+  }
+
+  printNameRuns(view, pendingIndexes, depth, treeLines);
+}
+
+function printNameRuns(view: TreeView, siblingIndexes: number[], depth: number, treeLines: string[]): void {
   const nodes = view.tree.page.nodes;
   let runStart = 0;
 
@@ -838,10 +1073,26 @@ function getElementPrintedIndexes(page: PageMeasurement, matchedIndexes: number[
   return printedIndexes;
 }
 
+/** Nodes that carry a finding, among `candidateIndexes` when given, plus all their ancestors. */
+function getFindingsPrintedIndexes(tree: PageTree, candidateIndexes: Set<number> | null): Set<number> {
+  const printedIndexes = new Set<number>();
+
+  for (const finding of tree.analysis.findings) {
+    if (candidateIndexes !== null && !candidateIndexes.has(finding.nodeIndex)) continue;
+
+    for (let index = finding.nodeIndex; index !== -1 && !printedIndexes.has(index); index = tree.page.nodes[index].parentIndex) {
+      printedIndexes.add(index);
+    }
+  }
+
+  return printedIndexes;
+}
+
 function createTreeView(tree: PageTree, shouldShowColors: boolean): TreeView {
   return {
     tree,
     shouldShowColors,
+    isFindingsView: false,
     printedIndexes: null,
     matchedIndexes: new Set(),
     collapsedBehindModalIndex: tree.page.modalIndex === null ? null : 0,
@@ -850,7 +1101,7 @@ function createTreeView(tree: PageTree, shouldShowColors: boolean): TreeView {
   };
 }
 
-function formatTree(tree: PageTree, shouldIncludeChildren: boolean, shouldShowColors: boolean): string[] {
+function formatTree(tree: PageTree, shouldIncludeChildren: boolean, shouldShowColors: boolean, isFindingsView: boolean): string[] {
   const page = tree.page;
   const element = page.element;
   const treeLines: string[] = [];
@@ -871,6 +1122,11 @@ function formatTree(tree: PageTree, shouldIncludeChildren: boolean, shouldShowCo
     view.collapsedBehindModalIndex = null;
   }
 
+  if (isFindingsView) {
+    view.isFindingsView = true;
+    view.printedIndexes = getFindingsPrintedIndexes(tree, view.printedIndexes);
+  }
+
   for (const rootIndex of tree.rootIndexes) {
     if (view.printedIndexes === null || view.printedIndexes.has(rootIndex)) {
       printNode(view, rootIndex, 0, 1, treeLines);
@@ -889,7 +1145,7 @@ interface AcrossFinding {
 }
 
 /** Findings that only some runs have, or no lines when every run has the same findings. */
-function formatAcrossRuns(runs: RunResult[]): string[] {
+function formatAcrossRuns(runs: RunResult[], pageTrees: PageTree[]): string[] {
   const isSchemeMixed = runs.some((run) => run.colorScheme !== runs[0].colorScheme);
   const runLabels = runs.map((run) => {
     const sizeLabel = `${run.viewport.width}x${run.viewport.height}`;
@@ -898,15 +1154,15 @@ function formatAcrossRuns(runs: RunResult[]): string[] {
   });
   const findingsByKey = new Map<string, AcrossFinding>();
 
-  runs.forEach((run, runPosition) => {
-    const nodePaths = getNodePaths(run.page);
-    const nameCounts = createNameCounts(run.page);
-    const findingsInTreeOrder = [...run.analysis.findings].sort((first, second) => first.nodeIndex - second.nodeIndex);
+  pageTrees.forEach(({ page, analysis }, runPosition) => {
+    const nodePaths = getNodePaths(page);
+    const nameCounts = createNameCounts(page);
+    const findingsInTreeOrder = [...analysis.findings].sort((first, second) => first.nodeIndex - second.nodeIndex);
 
     for (const finding of findingsInTreeOrder) {
       const key = `${nodePaths[finding.nodeIndex]} ${finding.summaryText}`;
       const acrossFinding = findingsByKey.get(key) ?? {
-        shortName: getShortName(run.page, finding.nodeIndex, nameCounts),
+        shortName: getShortName(page, finding.nodeIndex, nameCounts),
         text: finding.text,
         runPositions: new Set<number>(),
       };

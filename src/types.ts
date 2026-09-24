@@ -208,8 +208,8 @@ export interface TextInfo {
   capTop: number;
   /** Baseline of the first line. */
   baseline: number;
-  /** '#rrggbb', blended as drawn. */
-  color: string;
+  /** '#rrggbb', blended as drawn. null when the text fill is transparent, like gradient text or `color: transparent`. */
+  color: string | null;
   /** '#rrggbb'. null when an image or a replaced element is behind the text. */
   background: string | null;
   /** Large text in the WCAG sense. */
@@ -237,10 +237,23 @@ export interface SettleReport {
   stillMovingName: string | null;
 }
 
+/** The font that a sampled text element asks for, as the page declares it. */
+export interface FontRequest {
+  /** The first family of the computed font-family stack that is not generic. null when the stack starts with a generic family. */
+  requestedFamily: string | null;
+  /** True when a FontFace of the page carries the requested family. */
+  isWebFont: boolean;
+  /** True when such a FontFace loaded. */
+  isWebFontLoaded: boolean;
+}
+
 export interface PxtreeInPage {
   measurePage(options: MeasurePageOptions): PageMeasurement;
   settlePage(options: { maxWaitMs: number }): Promise<SettleReport>;
   revealByScrolling(options: { maxSteps: number; maxImageWaitMs: number }): Promise<void>;
+  /** One element with own text per distinct computed font-family stack, in document order. */
+  getFontSampleElements(options: { maxStackCount: number }): Element[];
+  getFontRequests(elements: Element[]): FontRequest[];
 }
 
 // ---------- findings ----------
@@ -255,7 +268,10 @@ export type FindingKind =
   | 'text-off-center'
   | 'overlaps'
   | 'tops-across-siblings'
+  | 'starts-across-siblings'
   | 'wider'
+  | 'taller'
+  | 'shorter'
   | 'sibling-gaps'
   | 'text-truncated'
   | 'contrast'
@@ -366,6 +382,13 @@ export interface MeasureOptions {
   shouldIncludeChildren?: boolean;
   /** PNG path. Several runs get a -WxH-scheme suffix. */
   screenshotPath?: string;
+  /** Capture Playwright's aria snapshot of the page, or of each elementSelector match, in the measured state. Default false. */
+  shouldCaptureAriaSnapshot?: boolean;
+  /**
+   * Measure the page. Default true. false skips the measurement only when cacheDirectory is null and there is no elementSelector,
+   * because both need it. A run without a measurement has page and analysis null.
+   */
+  shouldMeasurePage?: boolean;
   /** Run the reveal scroll pass. Default true. */
   shouldReveal?: boolean;
   /** Load budget in ms. Default 30000. */
@@ -382,10 +405,12 @@ export interface RunResult {
   status: number | null;
   /** What settling saw before the measurement. */
   settle: SettleReport;
-  /** Everything measured in the page. */
-  page: PageMeasurement;
-  /** Layouts and findings computed from the page. */
-  analysis: Analysis;
+  /** The devicePixelRatio option that the run used. */
+  devicePixelRatio: number;
+  /** Everything measured in the page. null when the measurement was skipped. */
+  page: PageMeasurement | null;
+  /** Layouts and findings computed from the page. null when the measurement was skipped. */
+  analysis: Analysis | null;
   /** The snapshot of the previous run. null on the first run or with the cache off. */
   previousSnapshot: Snapshot | null;
   /** False when cacheDirectory was null. */
@@ -394,6 +419,19 @@ export interface RunResult {
   screenshotPath: string | null;
   /** The shouldIncludeChildren option that the run used. */
   shouldIncludeChildren: boolean;
+  /** Aria snapshots as YAML: one for the page, or one per elementSelector match. null when none was asked for. */
+  ariaSnapshots: string[] | null;
+  /** The URL that loading ended on, when it differs from the target by more than a trailing slash or a default port. */
+  redirectedUrl: string | null;
+  /** Font stacks whose first named family did not draw the text. Empty when the measurement was skipped. */
+  fontFallbacks: FontFallback[];
+}
+
+export interface FontFallback {
+  /** The first family of the stack that is not generic. */
+  requestedFamily: string;
+  /** The platform font that drew most of the glyphs. */
+  drawnFamily: string;
 }
 
 export interface MeasureResult {
@@ -401,18 +439,24 @@ export interface MeasureResult {
   target: string;
   /** One run per viewport and color scheme. Runs finished before an error are kept. */
   runs: RunResult[];
-  /** A load, launch or script failure. null when every run finished. */
-  error: { kind: 'load' | 'launch' | 'script'; message: string } | null;
+  /** A load, launch, script or measurement failure. null when every run finished. */
+  error: { kind: 'load' | 'launch' | 'script' | 'measure'; message: string } | null;
 }
 
 export interface FormatOptions {
   /** Print hex colors in [renders] and [text]. Default false. */
   shouldShowColors?: boolean;
-  /** Drop the tree and keep the facts line, since last run, the summary and the across block. Default false. */
-  isSummaryOnly?: boolean;
-  /** Keep only the facts line and since last run. Wins over `isSummaryOnly`. Default false. */
-  isChangesOnly?: boolean;
+  /**
+   * How much of the measurement each run prints. Default 'tree'.
+   * 'tree': facts line, since last run, summary, tree and the across block.
+   * 'findings': the same, with the tree cut down to the lines that carry a finding and the names of their ancestors.
+   * 'summary': the same without the tree. 'changes': facts line and since last run. 'none': the facts line only.
+   * The aria section follows in every case when the run has aria snapshots.
+   */
+  report?: ReportDetail;
 }
+
+export type ReportDetail = 'tree' | 'findings' | 'summary' | 'changes' | 'none';
 
 /** A browser session. Keep one open to measure several times without relaunching. */
 export interface Session {

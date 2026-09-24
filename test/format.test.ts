@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { createSnapshot, formatDiff, getNodePaths } from '../src/format/diff.ts';
-import { format } from '../src/format/format.ts';
+import { format, getPrintableText } from '../src/format/format.ts';
 import type {
   Analysis,
   Finding,
@@ -215,12 +215,16 @@ function createRun(page: PageMeasurement, analysis: Analysis, overrides: Partial
     colorScheme: page.colorScheme,
     status: 200,
     settle: { stillMovingName: null },
+    devicePixelRatio: page.devicePixelRatio,
     page,
     analysis,
     previousSnapshot: null,
     isCacheEnabled: false,
     screenshotPath: null,
     shouldIncludeChildren: true,
+    ariaSnapshots: null,
+    redirectedUrl: null,
+    fontFallbacks: [],
     ...overrides,
   };
 }
@@ -749,6 +753,37 @@ describe('folding', () => {
     assert.ok(!treeLines.some((line) => line.includes('›')));
   });
 
+  test('a run of 3 or more same-group siblings with the same findings, numbers aside, prints the first and one line', () => {
+    const createFaintSpec = (top: number, ratio: string): NodeSpec => ({
+      name: top === 80 ? 'li.item.active' : 'li.item',
+      text: 'Item',
+      size: [300, 40],
+      at: [0, top],
+      textInfo: createTextSpec(16, 24),
+      findings: [{ kind: 'contrast', text: `contrast ${ratio}`, summaryText: 'contrast {n}', amount: Number(ratio), textColor: '#aaaaaa' }],
+    });
+    const itemSpecs = [0, 40, 80, 120].map((top, position) => createFaintSpec(top, position === 3 ? '2.2' : '2.1'));
+    const reportLines = formatPage({ roots: [{ name: 'body', size: [1280, 800], children: [...itemSpecs, createItemSpec([0, 160])] }] });
+
+    assert.deepEqual(getTreeLines(reportLines), [
+      'body 1280x800',
+      '  li.item "Item" 300x40 [text 16/24][!! contrast 2.1]',
+      '  …×3 similar with the same findings',
+      '  li.item "Item" 300x40 @0,160 [text 16/24]',
+    ]);
+    assert.ok(reportLines.includes('summary: 4 findings'), reportLines.join('\n'));
+  });
+
+  test('two siblings with the same findings, or different findings, do not fold', () => {
+    const createFindingSpec = (top: number, text: string): NodeSpec => ({ ...createItemSpec([0, top]), findings: [{ kind: 'image-not-loaded', text }] });
+    const pairLines = getTreeLines(formatPage({ roots: [{ name: 'body', size: [1280, 800], children: [createFindingSpec(0, 'image not loaded'), createFindingSpec(40, 'image not loaded')] }] }));
+    const mixedSpecs = [createFindingSpec(0, 'image not loaded'), createFindingSpec(40, 'text cut 4'), createFindingSpec(80, 'image not loaded')];
+    const mixedLines = getTreeLines(formatPage({ roots: [{ name: 'body', size: [1280, 800], children: mixedSpecs }] }));
+
+    assert.equal(pairLines.length, 3);
+    assert.equal(mixedLines.length, 4);
+  });
+
   test('a finding on the child keeps the chain and prints the finding', () => {
     const link: NodeSpec = {
       name: 'a.link',
@@ -886,6 +921,66 @@ describe('tags', () => {
     const factsLine = format({ target: page.url, runs: [run], error: null }).split('\n')[0];
 
     assert.equal(factsLine, '1280x800 light dpr 2 ltr scroll 0/0 page 1280x800 painted to 800 sideways 150 by section#hero h1 screenshot /tmp/shot.png 2560x1600');
+  });
+
+  test('a redirect, a font that did not draw and an inner scroller print on the facts line', () => {
+    const { page, analysis } = createPage({
+      page: { failedFontFamilies: ['Inter', 'Brand'] },
+      roots: [
+        {
+          name: 'body',
+          size: [1280, 800],
+          children: [
+            {
+              name: 'main',
+              size: [1280, 800],
+              node: { scroll: { axes: [{ axis: 'y', contentSize: 2400, visibleSize: 800, offset: 0 }], childCount: 3, childrenOutCount: 2 } },
+            },
+            {
+              name: 'ul.small',
+              size: [200, 100],
+              node: { scroll: { axes: [{ axis: 'y', contentSize: 300, visibleSize: 100, offset: 0 }], childCount: 3, childrenOutCount: 2 } },
+            },
+          ],
+        },
+      ],
+    });
+    const run = createRun(page, analysis, {
+      redirectedUrl: 'http://localhost:5173/login?next=]x',
+      fontFallbacks: [{ requestedFamily: 'Inter', drawnFamily: 'DejaVu Sans' }],
+    });
+    const factsLine = format({ target: page.url, runs: [run], error: null }).split('\n')[0];
+
+    assert.equal(
+      factsLine,
+      '1280x800 light dpr 1 ltr scroll 0/0 page 1280x800 painted to 800 redirected to http://localhost:5173/login?next=)x window does not scroll, main scrolls y 2400 in 800 font "Inter" not used, drew DejaVu Sans font failed Brand',
+    );
+  });
+
+  test('a window that scrolls prints no inner scroller fact', () => {
+    const { page, analysis } = createPage({
+      page: { scroll: { x: 0, y: 0, maxX: 0, maxY: 400 } },
+      roots: [
+        {
+          name: 'body',
+          size: [1280, 1200],
+          children: [{ name: 'main', size: [1280, 800], node: { scroll: { axes: [{ axis: 'y', contentSize: 2400, visibleSize: 800, offset: 0 }], childCount: 3, childrenOutCount: 2 } } }],
+        },
+      ],
+    });
+    const factsLine = format({ target: page.url, runs: [createRun(page, analysis)], error: null }).split('\n')[0];
+
+    assert.doesNotMatch(factsLine, /window does not scroll/);
+  });
+
+  test('a transparent text fill prints fill transparent, or transparent with colors', () => {
+    const { page, analysis } = createPage({
+      roots: [{ name: 'body', size: [1280, 800], children: [{ name: 'h1', text: 'Hi', size: [100, 40], textInfo: { ...createTextSpec(32, 40), color: null, background: null } }] }],
+    });
+    const result = { target: page.url, runs: [createRun(page, analysis)], error: null };
+
+    assert.equal(format(result).split('\n').at(-1), '  h1 "Hi" 100x40 [text 32/40, fill transparent, on image]');
+    assert.equal(format(result, { shouldShowColors: true }).split('\n').at(-1), '  h1 "Hi" 100x40 [text 32/40, transparent on image]');
   });
 
   test('translate, animation, role and clipped-children facts', () => {
@@ -1031,17 +1126,103 @@ describe('report detail', () => {
   }
 
   test('summary prints the facts line, since last run and the summary, and no tree', () => {
-    const reportLines = formatWithDetail({ isSummaryOnly: true });
+    const reportLines = formatWithDetail({ report: 'summary' });
 
     assert.deepEqual(reportLines.slice(1, 4), ['since last run: first run', 'summary: 1 finding', '  past viewport end 42: a.cta']);
     assert.ok(!reportLines.some((line) => line.startsWith('body') || line.startsWith('tree:')), reportLines.join('\n'));
   });
 
   test('changes prints only the facts line and since last run', () => {
-    const reportLines = formatWithDetail({ isSummaryOnly: true, isChangesOnly: true });
+    const reportLines = formatWithDetail({ report: 'changes' });
 
     assert.equal(reportLines.length, 5, reportLines.join('\n'));
     assert.deepEqual([reportLines[1], reportLines[2], reportLines[4]], ['since last run: first run', '', 'since last run: first run']);
+  });
+
+  test('none prints only the facts line', () => {
+    const reportLines = formatWithDetail({ report: 'none' });
+
+    assert.equal(reportLines.length, 3, reportLines.join('\n'));
+    assert.equal(reportLines[1], '');
+    assert.ok(reportLines[2].startsWith('1280x800 light dpr 1 ltr'), reportLines[2]);
+  });
+
+  test('findings prints the summary, then only the lines with findings under the bare names of their ancestors', () => {
+    const smallTarget: FindingSpec = { kind: 'small-target', text: 'small target 10x10' };
+    const { page, analysis } = createPage({
+      roots: [
+        {
+          name: 'body',
+          size: [1280, 800],
+          node: createPaddingSpec(16),
+          children: [
+            { name: 'header', size: [1248, 64], ink: background, children: [{ name: 'a.logo', size: [80, 40] }] },
+            { name: 'main', size: [1248, 600], at: [0, 64], ink: background, children: [{ name: 'a.close', size: [10, 10], at: [4, 4], findings: [smallTarget] }] },
+          ],
+        },
+      ],
+    });
+    const result = { target: page.url, runs: [createRun(page, analysis)], error: null };
+    const treeLines = format(result).split('\n');
+    const findingsLines = format(result, { report: 'findings' }).split('\n');
+
+    assert.ok(treeLines.some((line) => line.startsWith('  header ')), treeLines.join('\n'));
+    assert.deepEqual(findingsLines.slice(1), ['summary: 1 finding', '  small target 10x10: a.close', 'body', '  main', '    a.close 10x10 @4,4 [!! small target 10x10]']);
+  });
+});
+
+describe('printable page text', () => {
+  test('control characters and line separators go, quotes, brackets and › turn into look-alikes', () => {
+    assert.equal(getPrintableText('a\nb c\u0085d\u0007e'), 'abcde');
+    assert.equal(getPrintableText('" [!! clipped] › x'), "' (!! clipped) > x");
+  });
+});
+
+describe('aria section', () => {
+  const pageAriaSnapshot = '- button "Menu"\n- list:\n  - listitem: Profile';
+
+  function formatRuns(runOverrides: Array<Partial<RunResult>>, formatOptions: FormatOptions = {}): string[] {
+    const { page, analysis } = createPage({ roots: [{ name: 'body', size: [1280, 800] }] });
+    const runs = runOverrides.map((overrides) => createRun(page, analysis, overrides));
+
+    return format({ target: page.url, runs, error: null }, formatOptions).split('\n');
+  }
+
+  test('follows the report under an aria heading', () => {
+    const reportLines = formatRuns([{ ariaSnapshots: [pageAriaSnapshot] }]);
+    const ariaPosition = reportLines.indexOf('aria:');
+
+    assert.ok(ariaPosition > reportLines.findIndex((line) => line.startsWith('body ')), reportLines.join('\n'));
+    assert.deepEqual(reportLines.slice(ariaPosition + 1), pageAriaSnapshot.split('\n'));
+  });
+
+  test('prints nothing for an empty snapshot', () => {
+    const reportLines = formatRuns([{ ariaSnapshots: [''] }]);
+
+    assert.ok(!reportLines.some((line) => line.startsWith('aria')), reportLines.join('\n'));
+  });
+
+  test('heads each element match when there are several and skips empty ones', () => {
+    const { page, analysis } = createPage({ roots: [{ name: 'body', size: [1280, 800] }] });
+    const pageWithElement = { ...page, element: { selector: 'li', matchedIndexes: [0], matchedCount: 3 } };
+    const run = createRun(pageWithElement, analysis, { ariaSnapshots: ['- listitem: Profile', '', '- listitem: Sign out'] });
+    const reportLines = format({ target: page.url, runs: [run], error: null }, { report: 'none' }).split('\n');
+
+    assert.deepEqual(reportLines.slice(1), ['aria li match 1:', '- listitem: Profile', 'aria li match 3:', '- listitem: Sign out']);
+  });
+
+  test('a second scheme with the same snapshot prints aria: same as light', () => {
+    const reportLines = formatRuns([{ ariaSnapshots: [pageAriaSnapshot] }, { colorScheme: 'dark', ariaSnapshots: [pageAriaSnapshot] }], { report: 'none' });
+
+    assert.deepEqual(reportLines.slice(-1), ['aria: same as light']);
+    assert.equal(reportLines.filter((line) => line === 'aria:').length, 1, reportLines.join('\n'));
+  });
+
+  test('a run without a measurement prints a short facts line and the whole-viewport screenshot size', () => {
+    const reportLines = formatRuns([{ page: null, analysis: null, devicePixelRatio: 2, screenshotPath: 'shot.png', ariaSnapshots: [pageAriaSnapshot] }]);
+
+    assert.equal(reportLines[0], '1280x800 light dpr 2 not measured screenshot shot.png 2560x1600');
+    assert.equal(reportLines[1], 'aria:');
   });
 });
 

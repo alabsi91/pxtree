@@ -167,6 +167,24 @@ describe('layout', () => {
     assert.equal(getNodeLayouts(page)[2].x, 7);
   });
 
+  test('border and padding of a scaled box count at their drawn size', () => {
+    const page = createPage([
+      bodySpec,
+      {
+        parentIndex: 0,
+        rect: createRect(100, 100, 248, 88),
+        layoutWidth: 124,
+        layoutHeight: 44,
+        scale: 2,
+        border: [2, 2, 2, 2],
+        padding: [10, 10, 10, 10],
+      },
+      { parentIndex: 1, rect: createRect(124, 124, 200, 40), layoutWidth: 100, layoutHeight: 20, isInsideTransform: true },
+    ]);
+
+    assert.deepEqual([getNodeLayouts(page)[2].x, getNodeLayouts(page)[2].y], [0, 0]);
+  });
+
   test('viewport frames are measured from the viewport at the current scroll', () => {
     const page = createPage(
       [bodySpec, { parentIndex: 0, rect: createRect(10, 420, 100, 40), position: 'fixed', isViewportFrame: true, isInFlow: false }],
@@ -927,7 +945,33 @@ describe('tops across siblings and wider', () => {
     page.nodes[9].rect.y += 10;
     page.nodes[10].rect.y += 10;
 
-    assert.deepEqual(getFindingTexts(page), []);
+    assert.deepEqual(getFindingTexts(page), ['li.card: 20 shorter than li.card']);
+  });
+
+  test('taller and shorter fire on the odd heights, like wider', () => {
+    const page = createCardRow([100, 100, 100, 100]);
+    page.nodes[1].rect.height = 240;
+    page.nodes[8].rect.height = 216;
+    page.nodes[11].rect.height = 190;
+
+    assert.deepEqual(getFindingTexts(page), ['li.card: 16 taller than li.card', 'li.card: 10 shorter than li.card']);
+  });
+
+  test('taller does not fire under 2 px, without a shared height, or inside a transform', () => {
+    const nearlyEvenPage = createCardRow([100, 100, 100]);
+    nearlyEvenPage.nodes[8].rect.height = 199;
+
+    const unevenPage = createCardRow([100, 100, 100]);
+    unevenPage.nodes[5].rect.height = 190;
+    unevenPage.nodes[8].rect.height = 180;
+
+    const transformedPage = createCardRow([100, 100, 100]);
+    transformedPage.nodes[8].rect.height = 170;
+    transformedPage.nodes[8].isInsideTransform = true;
+
+    assert.deepEqual(getFindingTexts(nearlyEvenPage), []);
+    assert.deepEqual(getFindingTexts(unevenPage), []);
+    assert.deepEqual(getFindingTexts(transformedPage), []);
   });
 
   test('wider does not fire inside a transform', () => {
@@ -935,6 +979,47 @@ describe('tops across siblings and wider', () => {
     page.nodes[8].isInsideTransform = true;
 
     assert.deepEqual(getFindingTexts(page), []);
+  });
+});
+
+describe('starts across siblings', () => {
+  function createFieldColumn(inputStarts: number[], inputWidths = inputStarts.map(() => 200), direction: 'ltr' | 'rtl' = 'ltr'): PageMeasurement {
+    const nodeSpecs: NodeSpec[] = [bodySpec, { parentIndex: 0, name: 'form', rect: createRect(0, 0, 400, 400), padding: [0, 0, 0, 20], direction }];
+
+    inputStarts.forEach((inputStart, position) => {
+      nodeSpecs.push({ parentIndex: 1, name: 'input.field', rect: createRect(inputStart, position * 40, inputWidths[position], 30), direction });
+    });
+
+    return createPage(nodeSpecs);
+  }
+
+  test('a stacked input nudged 3 px fires once on the parent, measured from its content box', () => {
+    assert.deepEqual(getFindingTexts(createFieldColumn([20, 20, 23, 20])), ['form: input.field starts 0..3 across siblings']);
+  });
+
+  test('right-aligned and centered columns share a line and do not fire', () => {
+    assert.deepEqual(getFindingTexts(createFieldColumn([20, 60, 120], [300, 260, 200])), []);
+    assert.deepEqual(getFindingTexts(createFieldColumn([20, 40, 60], [300, 260, 220])), []);
+  });
+
+  test('rtl starts count from the right edge', () => {
+    assert.deepEqual(getFindingTexts(createFieldColumn([200, 196, 200], undefined, 'rtl')), ['form: input.field starts 0..4 across siblings']);
+  });
+
+  test('a descendant at the same path fires once, an inline box does not', () => {
+    const nodeSpecs: NodeSpec[] = [bodySpec, { parentIndex: 0, name: 'form', rect: createRect(0, 0, 400, 400) }];
+
+    [0, 0, 5].forEach((inputOffset, position) => {
+      const fieldIndex = nodeSpecs.length;
+
+      nodeSpecs.push(
+        { parentIndex: 1, name: 'div.field', rect: createRect(0, position * 50, 400, 40) },
+        { parentIndex: fieldIndex, name: 'span', rect: createRect(0, position * 50, 40 + position * 30, 20), display: 'inline' },
+        { parentIndex: fieldIndex, name: 'input', rect: createRect(100 + inputOffset, position * 50, 200, 30), display: 'inline-block' },
+      );
+    });
+
+    assert.deepEqual(getFindingTexts(createPage(nodeSpecs)), ['form: input starts 100..105 across siblings']);
   });
 });
 
@@ -1022,6 +1107,15 @@ describe('contrast', () => {
     assert.equal(finding.text, 'contrast 4.4');
     assert.equal(finding.summaryText, 'contrast {n}');
     assert.equal(finding.textColor, '#777777');
+  });
+
+  test('a ratio that rounds to 4.5 still fires on the unrounded value', () => {
+    assert.ok(Math.round(getContrastRatio('#6a7b77', '#ffffff') * 10) / 10 === 4.5);
+    assert.deepEqual(getFindingTexts(createContrastPage({ color: '#6a7b77' })), ['p.meta: contrast 4.4']);
+  });
+
+  test('a transparent text fill has no contrast', () => {
+    assert.deepEqual(getFindingTexts(createContrastPage({ color: null })), []);
   });
 
   test('does not fire', () => {

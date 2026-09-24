@@ -574,7 +574,7 @@ export function getStuckStates(elements: Element[]): boolean[] {
 
   elements.forEach((element, elementIndex) => {
     const savedStyle = savedStyleAttributes[elementIndex];
-    element.setAttribute('style', `${savedStyle ?? ''}; position: relative !important`);
+    element.setAttribute('style', `${savedStyle ?? ''}; position: static !important`);
   });
 
   const flowBoxes = elements.map((element) => element.getBoundingClientRect());

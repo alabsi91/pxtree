@@ -80,6 +80,45 @@
       article p {
         margin: 0 0 12px;
       }
+
+      .fields {
+        margin-bottom: 24px;
+      }
+
+      .field {
+        display: block;
+        width: 200px;
+        margin-bottom: 8px;
+      }
+
+      .field.nudged {
+        margin-left: 3px;
+      }
+
+      .prices {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        width: 300px;
+        margin-bottom: 24px;
+      }
+
+      .tiles {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        margin-bottom: 24px;
+      }
+
+      .tile {
+        width: 100px;
+        height: 80px;
+        background: #f3f4f6;
+      }
+
+      .tile.short {
+        height: 60px;
+      }
     </style>
   </head>
   <body>
@@ -125,5 +164,21 @@
       <p>Second paragraph.</p>
     </article>
     <p class="with-link">Read the <a href="#guide">guide</a> first.</p>
+    <form class="fields">
+      <input class="field" placeholder="Name" />
+      <input class="field" placeholder="Email" />
+      <input class="field nudged" placeholder="Company" />
+      <input class="field" placeholder="Phone" />
+    </form>
+    <div class="prices">
+      <span class="price">$9</span>
+      <span class="price">$129</span>
+      <span class="price">$1,499</span>
+    </div>
+    <div class="tiles">
+      <div class="tile"></div>
+      <div class="tile short"></div>
+      <div class="tile"></div>
+    </div>
   </body>
 </html>
