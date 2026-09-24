@@ -2,20 +2,22 @@
 
 Loads a webpage in headless Chromium and prints what actually rendered as a compact text tree, so an AI coding agent can check a layout without a screenshot.
 
-A dev server page with a row of three cards, a row of three plans, a list of steps, a row of stats and an article:
+A dev server page with a row of three cards, a row of three plans, a list of steps, a row of stats, an article, a form, a column of prices and a row of tiles:
 
 ```
 $ npx -y pxtree@latest localhost:5173
-1280x800 light dpr 1 ltr scroll 0/50 page 1280x850 painted to 810
+1280x800 light dpr 1 ltr scroll 0/382 page 1280x1182 painted to 1134
 since last run: no changes
-summary: 5 findings
-  a.button tops 80..152 across siblings: ul.cards
+summary: 7 findings
+  a.button tops 64..136 across siblings: ul.cards
   div.stat tops 0..6 across siblings: div.stats
+  input.field starts 0..3 across siblings: form.fields
   12 wider than li.plan: li.plan.featured
   72 taller than li.card: li.card
+  20 shorter than div.tile: div.tile.short
   gaps 16 16 24 16 between li.step: ul.steps
-body 1280x850 [pad 24][gaps 24 24 24 24 16, free 16 at end]
-  ul.cards 1232x208 [gaps across 16, free 600 at end][!! a.button tops 80..152 across siblings]
+body 1280x1182 [pad 24][gaps 24 24 24 24 16 16 …, free 24 at end]
+  ul.cards 1232x208 [gaps across 16, free 600 at end][!! a.button tops 64..136 across siblings]
     li.card 200x136 [pad 16][gaps 8][renders background]
       h3 "Starter" 168x24 [text 19/24]
       p "Short text." 168x24 @0,32 [text 16/24]
@@ -46,11 +48,22 @@ body 1280x850 [pad 24][gaps 24 24 24 24 16, free 16 at end]
     p "Second paragraph." 1232x24 @0,108 [text 16/24]
   p.with-link "Read the first." 1232x24 @0,762 [text 16/24]
     a "guide" 39x17 @69,3 [text 16/24]
+  form.fields 1232x108 @0,802 [gaps 8][!! input.field starts 0..3 across siblings]
+    input.field "Name" 208x21 [pad 1 2][text 13/15][renders background, border] ×2
+    input.field.nudged "Company" 208x21 @3,58 [pad 1 2][text 13/15][renders background, border]
+    input.field "Phone" 208x21 @0,87 [pad 1 2][text 13/15][renders background, border]
+  div.prices 300x72 @0,934
+    span.price "$9" 18x24 @282,0 [text 16/24]
+    …×2 similar span.price 36x24..49x24
+  div.tiles 1232x80 @0,1030 [gaps across 16, free 900 at end]
+    div.tile 100x80 [renders background]
+    div.tile.short 100x60 @116,0 [renders background][!! 20 shorter than div.tile]
+    div.tile 100x80 @232,0 [renders background]
 ```
 
-The first line is the facts line: viewport, color scheme, device pixel ratio, direction, scroll position out of the maximum, document size, and `painted to`, the lowest painted pixel. `since last run` compares with the previous run of the same URL and settings. That history lives in `~/.cache/pxtree`, never in your project, and `--no-diff` skips it.
+The first line is the facts line: viewport, color scheme, device pixel ratio, direction, scroll position out of the maximum, document size, and `painted to`, the lowest painted pixel. `since last run` compares with the previous run of the same URL and settings, or of the same `--diff-key` name. That history lives in `~/.cache/pxtree`, never in your project, and `--no-diff` skips it.
 
-The `ul.cards` line says the "Choose" buttons in the three cards have tops from 80 px to 152 px below the top of their card. The `li.plan.featured "Lifetime"` line says that plan is 212x56 at x 432 in its row, 12 px wider than the width its siblings share. Findings are measurements with a threshold, never verdicts. The agent decides from the code whether they are intended.
+The `ul.cards` line says the "Choose" buttons in the three cards have tops from 64 px to 136 px below the top of their card. The `li.plan.featured "Lifetime"` line says that plan is 212x56 at x 432 in its row, 12 px wider than the width its siblings share. Findings are measurements with a threshold, never verdicts. The agent decides from the code whether they are intended.
 
 ## Why not a screenshot
 
@@ -70,13 +83,13 @@ pxtree itself downloads nothing and never edits your project. `--channel chrome`
 
 ### MCP server
 
-| Client | Install | Scope |
-|---|---|---|
-| Codex | `codex mcp add pxtree -- npx -y pxtree@latest mcp` | user, `~/.codex/config.toml` |
-| Claude Code | `claude mcp add --scope user pxtree -- npx -y pxtree@latest mcp` | user. `--scope project` writes `.mcp.json` |
-| Cursor | [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=pxtree&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInB4dHJlZUBsYXRlc3QiLCJtY3AiXX0%3D) or `~/.cursor/mcp.json` / `.cursor/mcp.json` | user / project |
+| Client          | Install                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Scope                                           |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Codex           | `codex mcp add pxtree -- npx -y pxtree@latest mcp`                                                                                                                                                                                                                                                                                                                                                                                                         | user, `~/.codex/config.toml`                    |
+| Claude Code     | `claude mcp add --scope user pxtree -- npx -y pxtree@latest mcp`                                                                                                                                                                                                                                                                                                                                                                                           | user. `--scope project` writes `.mcp.json`      |
+| Cursor          | [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=pxtree&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInB4dHJlZUBsYXRlc3QiLCJtY3AiXX0%3D) or `~/.cursor/mcp.json` / `.cursor/mcp.json`                                                                                                                                                                                                        | user / project                                  |
 | VS Code Copilot | [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square)](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%257B%2522name%2522%253A%2522pxtree%2522%252C%2522command%2522%253A%2522npx%2522%252C%2522args%2522%253A%255B%2522-y%2522%252C%2522pxtree%2540latest%2522%252C%2522mcp%2522%255D%257D) or `code --add-mcp '{"name":"pxtree","command":"npx","args":["-y","pxtree@latest","mcp"]}'` | user. `.vscode/mcp.json` for project, see below |
-| OpenCode | `~/.config/opencode/opencode.json` or `opencode.json`, see below | user / project |
+| OpenCode        | `~/.config/opencode/opencode.json` or `opencode.json`, see below                                                                                                                                                                                                                                                                                                                                                                                           | user / project                                  |
 
 OpenCode, `opencode.json`:
 
@@ -102,16 +115,16 @@ Any MCP client that reads `mcpServers`:
 }
 ```
 
-| Client | Command or config path | Scope |
-|---|---|---|
-| Claude Code plugin (MCP server and skill) | `/plugin marketplace add alabsi91/pxtree`, then `/plugin install pxtree@pxtree` | user |
-| Gemini CLI | `gemini mcp add -s user pxtree npx -y pxtree@latest mcp` | user. Without `-s user`: project `.gemini/settings.json` |
-| Devin (formerly Windsurf) | `devin mcp add pxtree -- npx -y pxtree@latest mcp`, files `~/.config/devin/mcp_config.json` / `.devin/mcp_config.json` | user / project |
-| Amp | `amp mcp add pxtree -- npx -y pxtree@latest mcp`, files `~/.config/amp/settings.json` / `.amp/settings.json`, see below | user / project |
-| Zed | `~/.config/zed/settings.json`, see below | user |
-| Cline | CLI: `cline mcp` or `~/.cline/mcp.json`. VS Code extension: Cline panel, MCP Servers, Configure | user |
-| Roo Code | `.roo/mcp.json`, or `mcp_settings.json` from Roo's settings | project / user |
-| JetBrains AI Assistant | Settings, Tools, AI Assistant, Model Context Protocol (MCP): paste the JSON above. The file path is not documented, check your client's docs | user / project |
+| Client                                    | Command or config path                                                                                                                       | Scope                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Claude Code plugin (MCP server and skill) | `/plugin marketplace add alabsi91/pxtree`, then `/plugin install pxtree@pxtree`                                                              | user                                                     |
+| Gemini CLI                                | `gemini mcp add -s user pxtree npx -y pxtree@latest mcp`                                                                                     | user. Without `-s user`: project `.gemini/settings.json` |
+| Devin (formerly Windsurf)                 | `devin mcp add pxtree -- npx -y pxtree@latest mcp`, files `~/.config/devin/mcp_config.json` / `.devin/mcp_config.json`                       | user / project                                           |
+| Amp                                       | `amp mcp add pxtree -- npx -y pxtree@latest mcp`, files `~/.config/amp/settings.json` / `.amp/settings.json`, see below                      | user / project                                           |
+| Zed                                       | `~/.config/zed/settings.json`, see below                                                                                                     | user                                                     |
+| Cline                                     | CLI: `cline mcp` or `~/.cline/mcp.json`. VS Code extension: Cline panel, MCP Servers, Configure                                              | user                                                     |
+| Roo Code                                  | `.roo/mcp.json`, or `mcp_settings.json` from Roo's settings                                                                                  | project / user                                           |
+| JetBrains AI Assistant                    | Settings, Tools, AI Assistant, Model Context Protocol (MCP): paste the JSON above. The file path is not documented, check your client's docs | user / project                                           |
 
 VS Code, `.vscode/mcp.json`:
 
@@ -147,7 +160,7 @@ Zed, `settings.json`:
 
 MCP Registry name: `io.github.alabsi91/pxtree`. The server has two tools: `measure`, and `guide`, which returns the reading guide.
 
-`measure` takes `target` and the CLI flags as inputs: `viewports`, `schemes`, `scroll`, `element`, `children`, `colors`, `wait`, `script`, `screenshot` (true saves a PNG per run under the temp directory), `timeout`, `diff`, `report` (`tree`, `findings`, `summary`, `changes` or `none`) and `aria` (true adds the aria tree). One call can return the report, the aria tree and a screenshot together. Inputs are bounded: viewport sides 1 to 10000, at most 10 viewports, `timeout` at most 120000. A file target must sit under the server's working directory.
+`measure` takes `target` and the CLI flags as inputs: `viewports`, `schemes`, `scroll`, `element`, `children`, `colors`, `wait`, `script`, `screenshot` (true saves a PNG per run under the temp directory), `timeout`, `diff`, `diffKey`, `report` (`tree`, `findings`, `summary`, `changes` or `none`) and `aria` (true adds the aria tree). One call can return the report, the aria tree and a screenshot together. Inputs are bounded: viewport sides 1 to 10000, at most 10 viewports, `timeout` at most 120000. A file target must sit under the server's working directory.
 
 ### Skill
 

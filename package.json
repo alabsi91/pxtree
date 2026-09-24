@@ -46,6 +46,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepublishOnly": "npm run typecheck && npm test",
     "test": "node scripts/build.mjs && node --test test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
