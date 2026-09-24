@@ -17,7 +17,7 @@ Flags: `pxtree --help` and `pxtree guide` (the guide lives in `src/guide.ts`). A
 `--script` runs in Node with the Playwright `page`, not inside the page. Only CDP input gives real hover, focus, keyboard and trusted clicks, and agents already know the Playwright API.
 
 - A path to an existing `.js`, `.mjs` or `.ts` file is imported and its default export called as `await fn(page)`. Anything else is inline code, the body of `async function (page) { <code> }` built with the `AsyncFunction` constructor. The API also takes a function.
-- The page's default action timeout is `timeout / 4`. The script runs once per viewport, after the reveal pass and `--scroll`, before `--wait` and the final settle (4.9). It may scroll: pxtree measures whatever scroll the page has at the end.
+- The page's default action timeout is `timeout / 4`. The script runs once per viewport, after the reveal pass and the first `--scroll` stop, before `--wait` and the final settle (4.9). It may scroll: pxtree measures whatever scroll the page has at the end.
 - A throw ends the run with `script failed: <message>`, exit 2.
 - A script that changed nothing is a fact, not an error. Before the script, and again after `--wait` and the final settle, the page reads its state as one string (`getPageStateText`): the DOM with every shadow root (`getHTML({ shadowRoots })`) and the attributes of `html`, the value (and `checked`) of every `input`, `textarea` and `select`, the top-layer elements, and the scroll offsets of the window and of every element. Equal strings print `page unchanged by script` on the facts line, so a click that failed to open a menu does not pass for a real state. A CSS `:hover` or `:focus` state leaves the string as it is, and the guide says so.
 
@@ -144,13 +144,16 @@ Per viewport:
 2. `waitForLoadState('networkidle', { timeout: 1500 })`, swallowed, skipped for `file:` targets. Then `document.fonts.ready`.
 3. `settlePage()`.
 4. Reveal pass (not with `--no-reveal`, a locked scroll, or a page no taller than the viewport): scroll one viewport height at a time, two frames per step, at most 30 steps, then back to 0 and up to 2000 ms for pending images. It fires reveal-on-scroll and lazy loads once.
-5. `--scroll`: `scrollTo` or `scrollIntoView({ block: 'start' })`, both `instant`, which reaches a target inside an app shell's `main`.
-6. Page state read (3), `--script`, `--wait`.
+5. The first `--scroll` stop: `scrollTo` a y offset or the bottom (`end`), or `scrollIntoView({ block: 'start' })` a selector, all `instant`. A selector reaches a target inside an app shell's `main`.
+6. Page state read (3), `--script`, `--wait`. Only at the first stop.
 7. `settlePage()`, page state compared (3).
 8. Measure, unless nothing needs it (`--report none`, cache off, no `--element`), racing what is left of `--timeout`: `measurement timed out after N ms`, exit 2. Then the font check, printable page text (5.1), screenshot, and aria snapshot (default mode, per `--element` match with its `checkVisibility` state).
 9. Each further scheme: `emulateMedia`, `settlePage()`, measure, screenshot, aria. No reload.
+10. Each further `--scroll` stop: back to the first scheme, scroll, then 7 to 9. No reload.
 
 A new viewport reloads the page on the same context and page.
+
+`--scroll 0,'#pricing',end` is a list of stops split at commas outside parentheses, brackets and quotes, so `:is(h2, h3)` stays one selector. A digit-only stop is a y offset, `end` the bottom, anything else a selector. There is no x scroll: nothing needed it, and a pair like `0,600` now reads as two stops. The API takes `scroll` as one stop or an array, the MCP tool too, at most 10. Each stop is its own run with its own facts line, summary and tree, and its own since-last-run key.
 
 `settlePage({ maxWaitMs: 1000 })` finishes time-based finite animations, pauses infinite ones at `currentTime = 0`, and leaves scroll-driven ones alone. Then a stability loop compares rounded rects of the first 3000 elements per frame until two frames match. When it never settles, the element that moved most is `still moving <name>`.
 
@@ -201,6 +204,8 @@ Behind a modal: while a modal is open, a node that is inert and outside the moda
 
 Page facts (first line): `status N`, `redirected to <url>` (4.9), `page unchanged by script` (3), `sideways N by X` (the document scrolls sideways; X has the widest `past viewport`), `scroll locked`, `window does not scroll, X scrolls y 2400 in 800` (the window's vertical range is under 1 px and a shown node scrolls vertically; X is the largest by area, an app shell), `top layer: X modal, Y popover` (every top-layer root with its kind; a `dialog.show()` dialog is not in the top layer and prints where it sits), `still moving X`, `font "F" not used, drew G`, `font failed F`, `coverage sampled partly`, `stopped at 20000 elements`, `screenshot <path> WxH`.
 
+Mid animation: a finding on a node that carries `[animating]`, or whose ancestor does, ends with ` (mid animation)` in its text and its summary text. It is a measurement of state: the numbers are one frame of something that moves.
+
 Finding texts are lowercase words with their amounts and names, never a judgement word. `Finding.kind` is the kebab-case name. A suppression only removes a measurement that means nothing, repeats one already printed, or follows a WCAG exception. It never guesses intent: full-bleed sections, avatar stacks, open popovers and deliberate clipping print their measurements, with their context as facts (`[clips 5 of 8 children]`, `[translated x -320]`, `[role carousel]`).
 
 ### 4.13 Folding repeated output
@@ -213,12 +218,12 @@ Finding texts are lowercase words with their amounts and names, never a judgemen
 
 ### 4.14 Known limits
 
-The guide lists them: coverage only in the viewport, no declarative closed roots or iframes, pseudo ink on the box, clip paths as border boxes, no border radius, desktop emulation only, physical positions in vertical writing, capped load waits, no geometry findings inside rotation or scale, no contrast over images, only web fonts checked.
+The guide lists them: coverage only in the viewport, no declarative closed roots or iframes, pseudo ink on the box, clip paths as border boxes, no border radius, desktop emulation only, physical positions in vertical writing, capped load waits, view-timeline reveals measured where the scroll left them, no geometry findings inside rotation or scale, no contrast over images, only web fonts checked.
 
 ### 4.15 Since last run
 
 - Cache: `$XDG_CACHE_HOME/pxtree`, else `~/.cache/pxtree`, never inside the user's repo. One `<sha1>.json` `Snapshot` per key, overwritten after every run.
-- Key: sha1 of JSON `[url, width, height, scheme, dpr, scroll, script text or file content, wait]`, or `[url, width, height, scheme, dpr, scroll, diff key]` with `--diff-key` (`diffKey`). The diff key names a state: a fix prototyped with `--script "await page.addStyleTag(…)" --diff-key base` compares with a plain run made with `--diff-key base`.
+- Key: sha1 of JSON `[url, width, height, scheme, dpr, scroll stop, script text or file content, wait]`, or `[url, width, height, scheme, dpr, scroll stop, diff key]` with `--diff-key` (`diffKey`). The diff key names a state: a fix prototyped with `--script "await page.addStyleTag(…)" --diff-key base` compares with a plain run made with `--diff-key base`.
 - `Snapshot`: per node path, `{ width, height, x, y, tags, findings }` with printed values. Node path: names from `body` joined with `>`, each with `[n]` when the parent has 2+ children of that name. Top-layer roots start their own path.
 - A path only in the old snapshot is gone, only in the new one is new, and hides its descendants. A path in both is changed when width, height, x or y differ by 1 px, or the tag or finding strings differ. Document order, a gone path after the path before it in the old snapshot.
 - Pure moves: changed nodes whose only change is `@x,y`, two or more with the same delta, print as one line: `~ 5 boxes from body>main>section.pricing down moved 44 down`. The header counts still count every node.
@@ -258,8 +263,8 @@ summary    = ( "summary: no findings" | "summary:" SP count-text { NL "  " summa
 summary-line = summary-text [ SP "×" count ] [ "," SP "text" SP hex ] ":" SP short-name { "," SP short-name } [ SP "+" n ]
 summary-text = Finding.summaryText with "{n}" replaced by the amount range ("12" or "12..18")
 count-text = "1 finding" | n SP "findings"
-short-name = [ name SP ] name                     ; an ancestor in front only for a context-free name
-same-tree  = "tree: same as" SP scheme [ "," SP "differences:" { NL "  " line-without-indent } ]
+short-name = [ name SP ] name [ SP n SP "of" SP m ]   ; an ancestor in front only for a context-free name; n of m among same-name siblings
+same-tree  = "tree: same as" SP ( scheme | "scroll" SP stop ) [ "," SP "differences:" { NL "  " line-without-indent } ]
 tree       = ( line | similar ) { NL ( line | similar ) }
 line       = indent name [ SP quoted-text ] SP W "x" H [ SP "@" x "," y ] [ SP brackets ] [ SP "×" n ]
 similar    = indent "…×" n SP "similar" SP ( name SP size-range | "with the same findings" )
@@ -275,8 +280,8 @@ reason     = "(not rendered)" | "(not painted)"   ; no box; or it or an ancestor
 
 - Numbers are integer px rounded half away from zero, except ratios (one decimal), angles and scale (two decimals). Summary lines group by `summaryText` (contrast also by `textColor`) in order of first appearance.
 - Page text (names, text previews, font families, the redirect URL) passes through `getPrintableText` right after `measurePage`: control characters and line separators dropped, `"` to `'`, `[` `]` to `(` `)`, `›` to `>`, so a page cannot forge a tag or a finding.
-- A context-free name (no id, every class on 10 or more names) gets its nearest uniquely named ancestor with an id or class in front: `div.footer-legal li`.
-- A run whose viewport and scroll equal an earlier run's, with another scheme, compares trees without findings and colors. When they match: `tree: same as light, differences:` plus the lines whose findings differ, and `summary: same as light` when the summary lines are equal too. Runs at different viewports print one full block each, and no block compares them.
+- A context-free name (no id, every class on 10 or more names) gets its nearest uniquely named ancestor with an id or class in front: `div.footer-legal li`. A name that 2 or more siblings share gets its position among them after it: `section.claims p 3 of 5`. The facts line names follow the same rule.
+- A run whose viewport and scroll equal an earlier run's, with another scheme, compares trees without findings and colors. When they match: `tree: same as light, differences:` plus the lines whose findings differ, and `summary: same as light` when the summary lines are equal too. Failing that, a later scroll stop compares its tree with the previous stop's run at the same viewport and scheme the same way: `tree: same as scroll 0, differences:`. Its summary always prints in full. Runs at different viewports print one full block each, and no block compares them.
 - Aria: Playwright's default YAML snapshot in the measured state, the whole subtree of each match even with `--no-children`.
 - `--element`: matches print under their ancestor lines, facts and summary stay page-wide, a match behind a modal prints normally with its findings. Matches without a box: `<selector>: 2 matched, 1 not rendered`.
 

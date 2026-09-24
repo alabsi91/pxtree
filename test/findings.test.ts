@@ -1143,6 +1143,17 @@ describe('contrast', () => {
     assert.equal(finding.textColor, '#777777');
   });
 
+  test('a finding under an animating ancestor says it is mid animation, in its text and its summary text', () => {
+    const page = createPage([
+      { ...bodySpec, isAnimating: true },
+      { parentIndex: 0, name: 'p.meta', rect: createRect(0, 0, 200, 20), textInfo: createTextInfo(createRect(0, 0, 200, 20), { color: '#777777' }) },
+    ]);
+    const [finding] = analyze(page).findings;
+
+    assert.equal(finding.text, 'contrast 4.4 (mid animation)');
+    assert.equal(finding.summaryText, 'contrast {n} (mid animation)');
+  });
+
   test('a ratio that rounds to 4.5 still fires on the unrounded value', () => {
     assert.ok(Math.round(getContrastRatio('#6a7b77', '#ffffff') * 10) / 10 === 4.5);
     assert.deepEqual(getFindingTexts(createContrastPage({ color: '#6a7b77' })), ['p.meta: contrast 4.4']);

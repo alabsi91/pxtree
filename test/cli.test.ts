@@ -241,6 +241,21 @@ test('--help lists flags and points to the guide', async () => {
   assert.ok(output.stdout.trimEnd().endsWith('run: pxtree guide'), output.stdout);
 });
 
+test('--scroll takes a comma list of stops, and a comma inside a selector stays in that stop', async () => {
+  const output = await runCli(['test/fixtures/reveal.html', '--scroll', '0,:is(.feature-two, .missing),end', '--report', 'summary', '--no-diff']);
+  const factsLines = output.stdout.trim().split('\n\n').map((runBlock) => runBlock.split('\n')[0]);
+
+  assert.equal(output.exitCode, 0, output.stderr);
+  assert.deepEqual(
+    factsLines.map((factsLine) => factsLine.match(/scroll \d+\/\d+/)?.[0]),
+    ['scroll 0/2800', 'scroll 1800/2800', 'scroll 2800/2800'],
+  );
+});
+
+test('an empty --scroll stop exits 1', async () => {
+  assertSingleErrorLine(await runCli([stateFixturePath, '--scroll', '0,,end']), 1, 'bad --scroll: 0,,end');
+});
+
 test('the skill file is current with the guide', () => {
   assert.equal(readFileSync(skillFileUrl, 'utf8'), createSkillText());
 });

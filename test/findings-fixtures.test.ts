@@ -223,14 +223,19 @@ describe('by-design.html', () => {
   test('a marquee prints its clipped items with the role and animation facts', () => {
     assert.match(findLine(reportLines, 'section.marquee '), /\[role marquee\]\[clips 1 of 1 children\]/);
     assert.match(findLine(reportLines, 'div.marquee-track '), /\[animating\]/);
-    assert.ok(reportLines.includes('  clipped out by section.marquee ×4: div.marquee-track span'), reportLines.join('\n'));
-    assert.match(findLine(reportLines, 'span "Umbrella"'), /\[!! clipped right \d+ by section\.marquee\]/);
+    assert.ok(
+      reportLines.includes(
+        '  clipped out by section.marquee (mid animation) ×4: div.marquee-track span 5 of 8, div.marquee-track span 6 of 8, div.marquee-track span 7 of 8 +1',
+      ),
+      reportLines.join('\n'),
+    );
+    assert.match(findLine(reportLines, 'span "Umbrella"'), /\[!! clipped right \d+ by section\.marquee \(mid animation\)\]/);
   });
 
   test('a translated carousel track prints its hidden slides and the visible slide that overflows the track', () => {
     assert.match(findLine(reportLines, 'section.carousel '), /\[role carousel\]/);
     assert.match(findLine(reportLines, 'ul.carousel-track '), /\[translated x -320\]\[clipped out by div\.carousel-viewport\]/);
-    assert.ok(reportLines.includes('  clipped out by div.carousel-viewport ×4: li.slide'), reportLines.join('\n'));
+    assert.ok(reportLines.includes('  clipped out by div.carousel-viewport ×4: li.slide 1 of 5, li.slide 3 of 5, li.slide 4 of 5 +1'), reportLines.join('\n'));
     assert.doesNotMatch(findLine(reportLines, 'li.slide "Slide two"'), /clipped/);
     assert.ok(!reportLines.some((line) => line.includes('past viewport')), reportLines.join('\n'));
   });

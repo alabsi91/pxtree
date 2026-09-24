@@ -18,6 +18,7 @@ import type {
   PageScript,
   PxtreeInPage,
   RunResult,
+  ScrollStop,
   Session,
   SessionOptions,
   SettleReport,
@@ -130,15 +131,23 @@ function makePageTextPrintable(measurement: PageMeasurement): void {
   measurement.failedFontFamilies = measurement.failedFontFamilies.map(getPrintableText);
 }
 
-function getScreenshotPath(basePath: string, viewport: Viewport, colorScheme: ColorScheme, hasSeveralRuns: boolean): string {
+/** Several runs get a `-WxH-scheme` suffix, and several scroll stops add `-scroll-N` to it. */
+function getScreenshotPath(basePath: string, viewport: Viewport, colorScheme: ColorScheme, hasSeveralRuns: boolean, scrollStopNumber: number | null): string {
   if (!hasSeveralRuns) {
     return basePath;
   }
 
   const extension = extname(basePath);
   const pathWithoutExtension = basePath.slice(0, basePath.length - extension.length);
+  const scrollStopSuffix = scrollStopNumber === null ? '' : `-scroll-${scrollStopNumber}`;
 
-  return `${pathWithoutExtension}-${viewport.width}x${viewport.height}-${colorScheme}${extension}`;
+  return `${pathWithoutExtension}-${viewport.width}x${viewport.height}-${colorScheme}${scrollStopSuffix}${extension}`;
+}
+
+function getScrollStops(scroll: MeasureOptions['scroll']): ScrollStop[] {
+  const scrollStops = scroll === undefined ? [] : [scroll].flat();
+
+  return scrollStops.length === 0 ? [0] : scrollStops;
 }
 
 function createPageScript(script: string | PageScript): PageScript {
@@ -315,23 +324,27 @@ async function settlePage(page: Page): Promise<SettleReport> {
   return page.evaluate((maxWaitMs) => (globalThis as PxtreeGlobal).__pxtree.settlePage({ maxWaitMs }), settleMaxWaitMs);
 }
 
-async function scrollPage(page: Page, scroll: NonNullable<MeasureOptions['scroll']>): Promise<void> {
-  if (typeof scroll === 'string') {
-    const hasScrolled = await page.evaluate((selector) => {
-      const element = document.querySelector(selector);
-      element?.scrollIntoView({ block: 'start', behavior: 'instant' });
-
-      return element !== null;
-    }, scroll);
-
-    if (!hasScrolled) {
-      throw new MeasureError('script', `scroll failed: no element matches ${scroll}`);
-    }
-
+async function scrollPage(page: Page, scrollStop: ScrollStop): Promise<void> {
+  if (typeof scrollStop === 'number') {
+    await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), scrollStop);
     return;
   }
 
-  await page.evaluate(({ x, y }) => window.scrollTo({ left: x, top: y, behavior: 'instant' }), scroll);
+  if (scrollStop === 'end') {
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    return;
+  }
+
+  const hasScrolled = await page.evaluate((selector) => {
+    const element = document.querySelector(selector);
+    element?.scrollIntoView({ block: 'start', behavior: 'instant' });
+
+    return element !== null;
+  }, scrollStop);
+
+  if (!hasScrolled) {
+    throw new MeasureError('script', `scroll failed: no element matches ${scrollStop}`);
+  }
 }
 
 async function runPageScript(page: Page, script: string | PageScript): Promise<void> {
@@ -389,14 +402,15 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
     const viewports = options.viewports ?? [{ width: 1280, height: 800 }];
     const colorSchemes = options.colorSchemes ?? ['light'];
     const devicePixelRatio = options.devicePixelRatio ?? 1;
-    const scroll = options.scroll ?? { x: 0, y: 0 };
+    const scrollStops = getScrollStops(options.scroll);
+    const hasSeveralScrollStops = scrollStops.length > 1;
     const timeoutMs = options.timeoutMs ?? 30000;
     const shouldReveal = options.shouldReveal ?? true;
     const shouldIncludeChildren = options.shouldIncludeChildren ?? true;
     const cacheDirectory = options.cacheDirectory === undefined ? getDefaultCacheDirectory() : options.cacheDirectory;
     const scriptCacheText = options.scriptCacheText ?? (typeof options.script === 'string' ? options.script : null);
     const snapshotStateKey = options.diffKey === undefined ? [scriptCacheText, options.wait ?? null] : [options.diffKey];
-    const hasSeveralRuns = viewports.length * colorSchemes.length > 1;
+    const hasSeveralRuns = viewports.length * scrollStops.length * colorSchemes.length > 1;
     const shouldCaptureAriaSnapshot = options.shouldCaptureAriaSnapshot ?? false;
     const shouldMeasurePage = (options.shouldMeasurePage ?? true) || cacheDirectory !== null || options.elementSelector !== undefined;
 
@@ -408,7 +422,30 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
 
     const context = await browser.newContext({ viewport: viewports[0], deviceScaleFactor: devicePixelRatio });
 
-    async function measureRun(page: Page, viewport: Viewport, colorScheme: ColorScheme, loadFacts: LoadFacts, settle: SettleReport): Promise<RunResult> {
+    /** Runs the script and the wait. Returns the page state from before the script, or null without a script. */
+    async function runScriptAndWait(page: Page): Promise<string | null> {
+      const stateTextBeforeScript = options.script === undefined ? null : await getPageStateText(page);
+
+      if (options.script !== undefined) {
+        await runPageScript(page, options.script);
+      }
+
+      if (options.wait !== undefined) {
+        await waitAfterScript(page, options.wait);
+      }
+
+      return stateTextBeforeScript;
+    }
+
+    async function measureRun(
+      page: Page,
+      viewport: Viewport,
+      scrollStopPosition: number,
+      colorScheme: ColorScheme,
+      loadFacts: LoadFacts,
+      settle: SettleReport,
+    ): Promise<RunResult> {
+      const scrollStop = scrollStops[scrollStopPosition];
       const remainingMs = Math.max(0, timeoutMs - (Date.now() - loadFacts.budgetStartTime));
       const measurement = shouldMeasurePage ? await measureInPage(page, measurePageOptions, remainingMs) : null;
       const fontFallbacks = measurement === null ? [] : await getFontFallbacks(page);
@@ -420,7 +457,8 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
       let screenshotPath: string | null = null;
 
       if (options.screenshotPath !== undefined) {
-        screenshotPath = getScreenshotPath(options.screenshotPath, viewport, colorScheme, hasSeveralRuns);
+        const scrollStopNumber = hasSeveralScrollStops ? scrollStopPosition + 1 : null;
+        screenshotPath = getScreenshotPath(options.screenshotPath, viewport, colorScheme, hasSeveralRuns, scrollStopNumber);
         await takeScreenshot(page, screenshotPath, measurement);
       }
 
@@ -428,6 +466,7 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
       const runWithoutMeasurement: RunResult = {
         viewport,
         colorScheme,
+        scrollStop,
         status: loadFacts.status,
         settle,
         devicePixelRatio,
@@ -452,7 +491,7 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
       let previousSnapshot: Snapshot | null = null;
 
       if (cacheDirectory !== null) {
-        const snapshotKey = getSnapshotKey([url, viewport.width, viewport.height, colorScheme, devicePixelRatio, scroll, ...snapshotStateKey]);
+        const snapshotKey = getSnapshotKey([url, viewport.width, viewport.height, colorScheme, devicePixelRatio, scrollStop, ...snapshotStateKey]);
         previousSnapshot = await readSnapshot(cacheDirectory, snapshotKey);
         await writeSnapshot(cacheDirectory, snapshotKey, createSnapshot(measurement, analysis));
       }
@@ -489,30 +528,27 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
           );
         }
 
-        await scrollPage(page, scroll);
+        for (const scrollStopPosition of scrollStops.keys()) {
+          const isFirstScrollStop = scrollStopPosition === 0;
+          const stopLoadFacts = isFirstScrollStop ? loadFacts : { ...loadFacts, budgetStartTime: Date.now() };
 
-        const stateTextBeforeScript = options.script === undefined ? null : await getPageStateText(page);
+          await page.emulateMedia({ colorScheme: colorSchemes[0] });
+          await scrollPage(page, scrollStops[scrollStopPosition]);
 
-        if (options.script !== undefined) {
-          await runPageScript(page, options.script);
-        }
+          const stateTextBeforeScript = isFirstScrollStop ? await runScriptAndWait(page) : null;
+          const firstSettle = await settlePage(page);
 
-        if (options.wait !== undefined) {
-          await waitAfterScript(page, options.wait);
-        }
+          if (stateTextBeforeScript !== null) {
+            loadFacts.isPageUnchangedByScript = stateTextBeforeScript === (await getPageStateText(page));
+          }
+          runs.push(await measureRun(page, viewport, scrollStopPosition, colorSchemes[0], stopLoadFacts, firstSettle));
 
-        const firstSettle = await settlePage(page);
-
-        if (stateTextBeforeScript !== null) {
-          loadFacts.isPageUnchangedByScript = stateTextBeforeScript === (await getPageStateText(page));
-        }
-        runs.push(await measureRun(page, viewport, colorSchemes[0], loadFacts, firstSettle));
-
-        for (const colorScheme of colorSchemes.slice(1)) {
-          await page.emulateMedia({ colorScheme });
-          const schemeLoadFacts = { ...loadFacts, budgetStartTime: Date.now() };
-          const settle = await settlePage(page);
-          runs.push(await measureRun(page, viewport, colorScheme, schemeLoadFacts, settle));
+          for (const colorScheme of colorSchemes.slice(1)) {
+            await page.emulateMedia({ colorScheme });
+            const schemeLoadFacts = { ...stopLoadFacts, budgetStartTime: Date.now() };
+            const settle = await settlePage(page);
+            runs.push(await measureRun(page, viewport, scrollStopPosition, colorScheme, schemeLoadFacts, settle));
+          }
         }
       }
 

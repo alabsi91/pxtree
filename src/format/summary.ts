@@ -37,13 +37,24 @@ function getAmountRangeText(groupFindings: Finding[]): string {
 export interface NameCounts {
   countByName: Map<string, number>;
   countByClassName: Map<string, number>;
+  /** Per node, its 1-based position among the siblings that share its name. */
+  sameNameSiblingPositionByNode: number[];
+  /** Per node, how many siblings share its name, itself included. */
+  sameNameSiblingCountByNode: number[];
 }
 
 export function createNameCounts(page: PageMeasurement): NameCounts {
   const countByName = new Map<string, number>();
   const countByClassName = new Map<string, number>();
+  const countBySiblingKey = new Map<string, number>();
+  const sameNameSiblingPositionByNode: number[] = [];
 
   for (const node of page.nodes) {
+    const siblingKey = `${node.parentIndex} ${node.name}`;
+    const sameNameSiblingPosition = (countBySiblingKey.get(siblingKey) ?? 0) + 1;
+
+    countBySiblingKey.set(siblingKey, sameNameSiblingPosition);
+    sameNameSiblingPositionByNode.push(sameNameSiblingPosition);
     countByName.set(node.name, (countByName.get(node.name) ?? 0) + 1);
 
     for (const className of getNameClassNames(node.name)) {
@@ -51,7 +62,9 @@ export function createNameCounts(page: PageMeasurement): NameCounts {
     }
   }
 
-  return { countByName, countByClassName };
+  const sameNameSiblingCountByNode = page.nodes.map((node) => countBySiblingKey.get(`${node.parentIndex} ${node.name}`)!);
+
+  return { countByName, countByClassName, sameNameSiblingPositionByNode, sameNameSiblingCountByNode };
 }
 
 function hasId(name: string): boolean {
@@ -66,8 +79,18 @@ function isContextFreeName(name: string, nameCounts: NameCounts): boolean {
   return !hasId(name) && classNames.every(isUtilityClass);
 }
 
-/** The node's name. When the name alone says little, the nearest ancestor with an id or class and a unique name goes in front. */
+/**
+ * The node's name. When the name alone says little, the nearest ancestor with an id or class and a unique name goes in front.
+ * When siblings share the name, its position among them goes after: `section.claims p 3 of 5`.
+ */
 export function getShortName(page: PageMeasurement, nodeIndex: number, nameCounts: NameCounts): string {
+  const sameNameSiblingCount = nameCounts.sameNameSiblingCountByNode[nodeIndex];
+  const siblingPositionText = sameNameSiblingCount > 1 ? ` ${nameCounts.sameNameSiblingPositionByNode[nodeIndex]} of ${sameNameSiblingCount}` : '';
+
+  return getNameWithAncestor(page, nodeIndex, nameCounts) + siblingPositionText;
+}
+
+function getNameWithAncestor(page: PageMeasurement, nodeIndex: number, nameCounts: NameCounts): string {
   const name = page.nodes[nodeIndex].name;
   if (!isContextFreeName(name, nameCounts)) {
     return name;

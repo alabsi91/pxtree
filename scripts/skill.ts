@@ -1,4 +1,4 @@
-import { readingGuideText } from '../src/guide.ts';
+import { readingGuideReferenceText, reportingRulesText } from '../src/guide.ts';
 
 export const skillFileUrl = new URL('../skills/pxtree/SKILL.md', import.meta.url);
 
@@ -10,9 +10,11 @@ license: MIT
 
 # Checking a rendered page with pxtree
 
-Its findings are measurements, not verdicts. Judge each one against the code as "Findings are facts" in the guide below says, and never list them back to the user. Once you judge a finding to be the design, say so once and never mention it again. It reports what the browser drew, which the source cannot tell you.
+## Reporting to the user
 
-Use it when (numbers from 47 planted bugs, text against a viewport screenshot):
+${reportingRulesText}Before the first call, check that the dev server answers (\`curl -sI localhost:5173\`), so a down server never costs a measurement that only prints \`could not load\`.
+
+pxtree reports what the browser drew, which the source cannot tell you. Use it when (numbers from 47 planted bugs, text against a viewport screenshot):
 - tap targets: 5 of 6 found, the screenshot 1 of 6
 - clipping by overflow hidden, a dropdown cut by its header included: 3 of 3, the screenshot 0 of 3
 - contrast, light or dark: 4 of 4, the screenshot 3 of 4
@@ -30,8 +32,8 @@ Long sessions:
 - After a fix, verify it with \`--report changes\`: only the facts line and what changed since the last run.
 - To prototype a fix with \`--script "await page.addStyleTag(…)"\`, give it and a plain baseline run the same \`--diff-key base\`, so since last run compares them.
 - Add \`--aria\` when you check labels, roles or reading order.
+- Measure several regions in one call with \`--scroll 0,'#pricing',end\`, not one call per stop.
 - Take one \`--report none --screenshot shot.png\` at the end, only if the text leaves a doubt.
-- Never paste the tool output to the user.
 
 Command shapes:
 
@@ -41,6 +43,7 @@ npx -y pxtree@latest ./dist/index.html                               # HTML file
 npx -y pxtree@latest localhost:5173 --viewport 390,1280              # mobile and desktop
 npx -y pxtree@latest localhost:5173 --scheme dark                    # dark mode
 npx -y pxtree@latest localhost:5173 --scroll '#pricing'              # a region below the fold
+npx -y pxtree@latest localhost:5173 --scroll 0,'#pricing',end        # several regions in one call
 npx -y pxtree@latest localhost:5173 --element '.card'                # one component and its ancestors
 npx -y pxtree@latest localhost:5173 --script "await page.click('text=Menu')" --wait '.menu'   # a state: open menu, dialog, hover
 npx -y pxtree@latest localhost:5173 --report summary --aria          # findings plus names, roles and reading order
@@ -53,5 +56,5 @@ Tags in the tree such as \`[clipped out by …]\`, \`[not painted …]\` and \`[
 `;
 
 export function createSkillText(): string {
-  return skillIntroductionText + readingGuideText;
+  return skillIntroductionText + readingGuideReferenceText;
 }

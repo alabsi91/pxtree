@@ -13,6 +13,8 @@
       .grower.wide { width: 300px; }
       .spinner { width: 40px; height: 40px; background: #333; animation: spin 1s linear infinite; }
       .progress { position: fixed; top: 0; left: 0; width: 100%; height: 4px; background: #06c; transform-origin: 0 0; animation: grow linear both; animation-timeline: scroll(root); }
+      @keyframes ink-in { from { color: #d8d8d8; } to { color: #111111; } }
+      .scroll-reveal { animation: ink-in linear both; animation-timeline: scroll(root); }
       .tall { height: 3000px; }
     </style>
   </head>
@@ -21,6 +23,7 @@
     <h1 class="fade">Fades in</h1>
     <div class="grower"></div>
     <div class="spinner"></div>
+    <div class="scroll-reveal"><p class="reveal-text">Inks in while the page scrolls</p></div>
     <div class="tall"></div>
     <script>
       requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector('.grower').classList.add('wide')));

@@ -240,6 +240,38 @@ test('reveal: below-the-fold sections are shown after the reveal pass', async ()
   assert.equal(hasUnpaintedNode(await measureFixture(session, 'reveal', { shouldReveal: false })), true);
 });
 
+test('reveal: a list of scroll stops measures one run per stop, and a stop that repeats the tree prints only its differences', async () => {
+  const reportText = (await formatFixture(session, 'reveal', { scroll: [0, '.feature-two', 'end'] })).join('\n');
+  const runBlocks = reportText.split('\n\n');
+
+  assert.deepEqual(
+    runBlocks.map((runBlock) => runBlock.split('\n')[0].match(/scroll \d+\/\d+/)?.[0]),
+    ['scroll 0/2800', 'scroll 1800/2800', 'scroll 2800/2800'],
+  );
+  assert.equal(runBlocks[1].split('\n').at(-1), 'tree: same as scroll 0');
+  assert.equal(runBlocks[2].split('\n').at(-1), 'tree: same as scroll .feature-two');
+});
+
+test('reveal: the since-last-run key includes the scroll stop', async () => {
+  const cacheDirectory = join(temporaryDirectory, 'scroll-stop-cache');
+
+  await measureFixture(session, 'reveal', { cacheDirectory, scroll: 0 });
+  const endResult = await measureFixture(session, 'reveal', { cacheDirectory, scroll: 'end' });
+
+  assert.equal(endResult.runs[0].previousSnapshot, null);
+});
+
+test('animations: a finding inside a scroll-driven animation says it is mid animation, in the tree and the summary', async () => {
+  const reportLines = await formatFixture(session, 'animations');
+
+  assert.match(findLine(reportLines, 'div.scroll-reveal '), /\[animating\]/);
+  assert.match(findLine(reportLines, 'p.reveal-text '), /\[!! contrast [\d.]+ \(mid animation\)\]$/);
+  assert.ok(
+    reportLines.some((line) => /^ {2}contrast [\d.]+ \(mid animation\), text #d8d8d8: p\.reveal-text$/.test(line)),
+    reportLines.join('\n'),
+  );
+});
+
 test('fonts: a web font that did not draw prints once as not used, the generic and default fonts print nothing', async () => {
   const result = await measureFixture(session, 'fonts');
   const factsLine = format(result).split('\n')[0];

@@ -6,9 +6,15 @@ license: MIT
 
 # Checking a rendered page with pxtree
 
-Its findings are measurements, not verdicts. Judge each one against the code as "Findings are facts" in the guide below says, and never list them back to the user. Once you judge a finding to be the design, say so once and never mention it again. It reports what the browser drew, which the source cannot tell you.
+## Reporting to the user
 
-Use it when (numbers from 47 planted bugs, text against a viewport screenshot):
+Findings are measurements, not verdicts. Judge each one against the code and the design intent, then reply to the user in one of two shapes and nothing else. Never explain why a finding was fine. If you judged it, the user does not hear about it. Never paste the tool output.
+- Nothing to change: one line, `Landing page is clean at 390, 768 and 1280, light and dark.` Then one line per side effect, `Docs dev server left running on :3000.` No ratios, no finding names, no list of what you judged intentional, no description of what was measured.
+- Changes made: one line per change, what and where. Then one line per decision the user must make.
+
+Before the first call, check that the dev server answers (`curl -sI localhost:5173`), so a down server never costs a measurement that only prints `could not load`.
+
+pxtree reports what the browser drew, which the source cannot tell you. Use it when (numbers from 47 planted bugs, text against a viewport screenshot):
 - tap targets: 5 of 6 found, the screenshot 1 of 6
 - clipping by overflow hidden, a dropdown cut by its header included: 3 of 3, the screenshot 0 of 3
 - contrast, light or dark: 4 of 4, the screenshot 3 of 4
@@ -26,8 +32,8 @@ Long sessions:
 - After a fix, verify it with `--report changes`: only the facts line and what changed since the last run.
 - To prototype a fix with `--script "await page.addStyleTag(…)"`, give it and a plain baseline run the same `--diff-key base`, so since last run compares them.
 - Add `--aria` when you check labels, roles or reading order.
+- Measure several regions in one call with `--scroll 0,'#pricing',end`, not one call per stop.
 - Take one `--report none --screenshot shot.png` at the end, only if the text leaves a doubt.
-- Never paste the tool output to the user.
 
 Command shapes:
 
@@ -37,6 +43,7 @@ npx -y pxtree@latest ./dist/index.html                               # HTML file
 npx -y pxtree@latest localhost:5173 --viewport 390,1280              # mobile and desktop
 npx -y pxtree@latest localhost:5173 --scheme dark                    # dark mode
 npx -y pxtree@latest localhost:5173 --scroll '#pricing'              # a region below the fold
+npx -y pxtree@latest localhost:5173 --scroll 0,'#pricing',end        # several regions in one call
 npx -y pxtree@latest localhost:5173 --element '.card'                # one component and its ancestors
 npx -y pxtree@latest localhost:5173 --script "await page.click('text=Menu')" --wait '.menu'   # a state: open menu, dialog, hover
 npx -y pxtree@latest localhost:5173 --report summary --aria          # findings plus names, roles and reading order
@@ -52,14 +59,12 @@ pxtree loads a page in headless Chromium and prints what actually rendered: pixe
 
 Target: a URL, a host like `localhost:5173` (gets http://) or an HTML file path.
 
-Findings are facts, not verdicts. Every `[!! ...]` is a measurement of what was drawn: it happened, but whether it is a bug is your call, against the code and the design intent. When you judge it intentional (a full-bleed image, a decorative overlap, a clipped ticker, a hidden menu), act on nothing and say nothing to the user about it. Tell the user only what you changed, or what you cannot decide without them, in one line each. Never list the tool's findings back to the user.
-
 ## Flags
 
 --viewport 390x844,1280x800     one measurement per size (default 1280x800); a width alone like 390 gets its device height
 --scheme light,dark             prefers-color-scheme (default light)
 --dpr 2                         device pixel ratio (default 1)
---scroll 600 | 0,600 | '#pricing'   scroll before measuring; a selector goes to the top of the viewport
+--scroll 0,'#pricing',end       scroll stops, one run each: a y offset, a selector (goes to the top of the viewport) or end (the bottom); the script runs once, at the first stop
 --script "await page.click('text=Menu')"   Playwright page code run before measuring; or a file whose default export is async (page) => {}
 --wait 500 | '.menu'            after the script: sleep ms, or wait until the selector is visible
 --element '.card'               print only matches and their ancestor lines; facts, summary and since last run stay page-wide
@@ -83,8 +88,8 @@ One call can hold all three: `--report summary --aria --screenshot shot.png`. `-
 
 Line 1, facts: `1280x800 light dpr 1 ltr scroll 0/1450 page 1280x2250 painted to 2210` = viewport, scheme, dpr, direction (`rtl (start is right)`), scroll y/max, document size, lowest painted pixel. Then page facts when true: `status 404`, `redirected to <url>`, `sideways 14 by a.more` (page scrolls sideways by 14, the widest `past viewport` element causes it), `scroll locked`, `window does not scroll, main scrolls y 2400 in 800` (an app shell: scroll inside main with --scroll '<selector>'), `page unchanged by script` (DOM, control values, top layer and scroll offsets are as before the script; a CSS :hover or :focus state does not count), `top layer: dialog#x modal, div.menu popover`, `still moving div.x` (never settled), `font "Inter" not used, drew Arial` (a web font of the page did not draw the text), `font failed Inter`, `coverage sampled partly`, `stopped at 20000 elements`, `screenshot shot.png 1280x800`.
 `since last run:` changes against the previous run with the same url, size, scheme, scroll, script and wait (or the same --diff-key), in document order. `~` changed, `+` new, `-` gone. `~ 12 boxes from body>main>section down moved 44 down`: boxes that only moved, all by the same amount. `findings gone: text overflows end 30`: a finding that went away.
-`summary:` each finding once, with its amount range, `×count` and up to three element names. A bare tag gets its nearest uniquely named ancestor in front: `div.footer-legal li`. While a modal is open, the inert page behind it has no findings and the summary ends with `3 findings behind the modal not listed` (--element on something behind it prints its findings).
-A second scheme whose tree matches the first except for findings and colors prints `tree: same as light, differences:` and only the lines whose findings differ, and `summary: same as light` when its summary is the same. Runs at other viewports print in full, one block each.
+`summary:` each finding once, with its amount range, `×count` and up to three element names. A bare tag gets its nearest uniquely named ancestor in front: `div.footer-legal li`. A name that siblings share gets its position among them: `section.claims p 3 of 5`. While a modal is open, the inert page behind it has no findings and the summary ends with `3 findings behind the modal not listed` (--element on something behind it prints its findings).
+A second scheme whose tree matches the first except for findings and colors prints `tree: same as light, differences:` and only the lines whose findings differ, and `summary: same as light` when its summary is the same. A later scroll stop whose tree matches the previous stop prints `tree: same as scroll 0, differences:` the same way. Runs at other viewports print in full, one block each.
 `aria:` with --aria, after the report: Playwright's aria snapshot as YAML, taken in the measured state (after --script, --scroll and --wait). Roles, names, states like `[checked]` or `[expanded]`, text, in reading order. `aria: none` when it is empty. `aria .item match 2 of 3:` heads each of several --element matches, `none (not rendered)` or `none (not painted)` says why one is empty. `aria: same as light` when a second scheme has the same tree.
 Tree lines: `name "text" WxH @x,y [tags][!! findings] ×N` (bracket groups follow each other with no space)
 - name is tag#id.class.class (generated ids and hashed or utility classes dropped); "text" is the start of its own text.
@@ -102,7 +107,7 @@ Tree lines: `name "text" WxH @x,y [tags][!! findings] ×N` (bracket groups follo
 [rotated 30° from 100x20]        WxH is the upright bounding box, from = layout size
 [scaled 1.50 from 100x20]        same, for scale
 [translated x -320]              its transform only moves it, by these px (x, y or both)
-[animating]                      a running, paused infinite, or scroll-driven animation targets it
+[animating]                      a running, paused infinite, or scroll-driven animation targets it; findings on it or inside it end with (mid animation), one frame of a moving state
 [role carousel] [role marquee]   from role or aria-roledescription
 [not painted: opacity 0]         opacity 0, children not walked
 [not painted: visibility hidden] paints nothing and has no findings, wherever it sits; children can still show
@@ -149,7 +154,7 @@ image aspect 1.30 of natural       object-fit fill draws it at 1.30 times its na
 image upscaled 2.1                 raster drawn at 2.1 times its natural pixels
 scroll range y 3                   scroll box whose content exceeds it by 1-8 px
 
-`clipped out by X` under a clipper tagged `[clips 5 of 8 children]`, with `[translated …]` or `[animating]` on its track, is what a carousel or marquee looks like. Judge it from the code, and say nothing to the user if it is intentional.
+`clipped out by X` under a clipper tagged `[clips 5 of 8 children]`, with `[translated …]` or `[animating]` on its track, is what a carousel or marquee looks like. Judge it from the code.
 
 ## Limits
 
@@ -158,7 +163,7 @@ scroll range y 3                   scroll box whose content exceeds it by 1-8 px
 - Pseudo-element ink is placed on the element's box. Clip paths count as their border box. Border radius is ignored.
 - Desktop emulation only: (hover: hover) and (pointer: fine) match. No touch.
 - Scrollbars take 0 px (overlay-scrollbar device).
-- Time-based animations are finished (infinite ones reset to 0) before measuring. Scroll-driven ones stay where the scroll put them.
+- Time-based animations are finished (infinite ones reset to 0) before measuring. Scroll-driven ones, view-timeline reveals included, are measured where the scroll left them. `--scroll '<selector>'` brings one fully in.
 - Vertical writing modes print physical positions.
 - No overlap, centering, width or height findings inside a rotated or scaled box.
 - pxtree waits for DOMContentLoaded, then up to 2 s for load and 1.5 s for a quiet network (not for files). Use --wait for slower pages.

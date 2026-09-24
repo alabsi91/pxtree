@@ -1428,7 +1428,27 @@ export function analyze(page: PageMeasurement): Analysis {
 
   const listedFindings = findings.filter((finding) => !isHiddenBehindModal(page, finding.nodeIndex));
 
+  for (const finding of listedFindings) {
+    if (isInsideAnimation(page, finding.nodeIndex)) {
+      finding.text += midAnimationText;
+      finding.summaryText += midAnimationText;
+    }
+  }
+
   return { layouts: context.layouts, findings: listedFindings, behindModalFindingCount: findings.length - listedFindings.length };
+}
+
+const midAnimationText = ' (mid animation)';
+
+/** The node or one of its ancestors is the target of a running, paused infinite or scroll-driven animation. */
+function isInsideAnimation(page: PageMeasurement, nodeIndex: number): boolean {
+  for (let index = nodeIndex; index !== -1; index = page.nodes[index].parentIndex) {
+    if (page.nodes[index].isAnimating) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /** Inert behind an open modal, and not inside an element match. An element match is an explicit request, so it keeps its findings. */

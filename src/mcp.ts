@@ -21,13 +21,19 @@ Call the guide tool once before the first measure to learn the tags and findings
 
 const guideToolDescription = 'Returns the pxtree reading guide: every flag, the output grammar, every tag and finding, and the limits. Call it once before the first measure.';
 
-const serverInstructions = `Run measure after every CSS or markup change. Pass the widths that matter when something reflows, and both schemes when a color changed. Findings are measurements, not verdicts: judge each against the code. Once you judge a finding to be the design, say so once and never mention it again. Never paste the output to the user. If the pxtree skill is loaded, skip the guide tool: the skill already holds the guide.`;
+const serverInstructions = `Run measure after every CSS or markup change. Pass the widths that matter when something reflows, both schemes when a color changed, and every region you need as one scroll array. Findings are measurements, not verdicts. Judge each against the code, then report in one of these shapes and nothing else:
+Nothing to change: one line like "Landing page is clean at 390, 768 and 1280, light and dark.", then one line per side effect.
+Changes made: one line per change, what and where, then one line per decision the user must make.
+Never explain why a finding was fine. If you judged it, the user does not hear about it. Never paste the output. If the pxtree skill is loaded, skip the guide tool: the skill already holds the guide.`;
 
 const maxViewportSide = 10000;
 const maxViewportCount = 10;
 const maxTimeoutMs = 120000;
 
+const maxScrollStopCount = 10;
+
 const viewportSideSchema = z.number().int().min(1).max(maxViewportSide);
+const scrollStopSchema = z.union([z.number().nonnegative(), z.string().min(1)]);
 
 const measureInputSchema = {
   target: z.string().describe('URL, host like localhost:5173, or HTML file path under the working directory'),
@@ -37,7 +43,10 @@ const measureInputSchema = {
     .optional()
     .describe('Default [{ width: 1280, height: 800 }]'),
   schemes: z.array(z.enum(['light', 'dark'])).optional().describe('prefers-color-scheme per run. Default ["light"]'),
-  scroll: z.union([z.object({ x: z.number(), y: z.number() }), z.string()]).optional().describe('Window scroll coordinates, or a selector to scroll to the top'),
+  scroll: z
+    .union([scrollStopSchema, z.array(scrollStopSchema).min(1).max(maxScrollStopCount)])
+    .optional()
+    .describe('A window y offset, "end" for the bottom, or a selector to scroll to the top. An array measures each stop in turn, one run per stop. Default 0'),
   element: z.string().optional().describe('Print only elements matching this selector and their ancestor lines'),
   children: z.boolean().optional().describe('With element: include what is inside the matches. Default true'),
   colors: z.boolean().optional().describe('Print hex colors in [text] and [renders]'),

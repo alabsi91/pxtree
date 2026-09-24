@@ -109,7 +109,7 @@ function formatRunReport(
   const treeLines =
     sameTreeRun === null
       ? formatTree(pageTree, run.shouldIncludeChildren, shouldShowColors, reportDetail === 'findings')
-      : formatTreeDifferences(pageTree, sameTreeRun.pageTree, sameTreeRun.colorScheme, shouldShowColors);
+      : formatTreeDifferences(pageTree, sameTreeRun.pageTree, sameTreeRun.runLabel, shouldShowColors);
 
   return [factsLine, ...changesLines, ...printedSummaryLines, ...treeLines];
 }
@@ -138,21 +138,46 @@ function getOtherSchemeRunPosition(runs: RunResult[], pageTrees: Array<PageTree 
   return earlierPosition;
 }
 
-/** An earlier run at the same viewport and scroll whose tree matches this one once findings and colors are left out. */
-function getSameTreeRun(
-  runs: RunResult[],
-  pageTrees: Array<PageTree | null>,
-  runPosition: number,
-): { pageTree: PageTree; colorScheme: ColorScheme } | null {
-  const earlierPosition = getOtherSchemeRunPosition(runs, pageTrees, runPosition);
-  const pageTree = pageTrees[runPosition];
-  const earlierTree = earlierPosition === null ? null : pageTrees[earlierPosition];
+/** The latest earlier run at the same viewport and scheme. Only a call with several scroll stops has one. */
+function getPreviousScrollStopRunPosition(runs: RunResult[], runPosition: number): number | null {
+  const run = runs[runPosition];
 
-  if (earlierPosition === null || pageTree === null || earlierTree === null || !hasSameTreeWithoutFindings(earlierTree, pageTree)) {
+  for (let earlierPosition = runPosition - 1; earlierPosition >= 0; earlierPosition--) {
+    const earlierRun = runs[earlierPosition];
+    if (hasSameViewport(earlierRun, run) && earlierRun.colorScheme === run.colorScheme) {
+      return earlierPosition;
+    }
+  }
+
+  return null;
+}
+
+/** `light` for a run with another scheme, `scroll 0` for a run at another scroll stop. */
+function getComparedRunLabel(run: RunResult, comparedRun: RunResult): string {
+  return comparedRun.colorScheme === run.colorScheme ? `scroll ${comparedRun.scrollStop}` : comparedRun.colorScheme;
+}
+
+/**
+ * An earlier run whose tree matches this one once findings and colors are left out. It is first the run at the same
+ * viewport and scroll with another scheme, then the run at the previous scroll stop.
+ */
+function getSameTreeRun(runs: RunResult[], pageTrees: Array<PageTree | null>, runPosition: number): { pageTree: PageTree; runLabel: string } | null {
+  const pageTree = pageTrees[runPosition];
+  if (pageTree === null) {
     return null;
   }
 
-  return { pageTree: earlierTree, colorScheme: runs[earlierPosition].colorScheme };
+  const comparedPositions = [getOtherSchemeRunPosition(runs, pageTrees, runPosition), getPreviousScrollStopRunPosition(runs, runPosition)];
+
+  for (const comparedPosition of comparedPositions) {
+    const comparedTree = comparedPosition === null ? null : pageTrees[comparedPosition];
+
+    if (comparedPosition !== null && comparedTree !== null && hasSameTreeWithoutFindings(comparedTree, pageTree)) {
+      return { pageTree: comparedTree, runLabel: getComparedRunLabel(runs[runPosition], runs[comparedPosition]) };
+    }
+  }
+
+  return null;
 }
 
 /** An earlier run at the same viewport and scroll, with another scheme, whose summary prints the same lines. */
@@ -205,6 +230,7 @@ function formatAriaSection(runs: RunResult[], runPosition: number): string[] {
     .find(
       (earlierRun) =>
         hasSameViewport(earlierRun, run) &&
+        earlierRun.scrollStop === run.scrollStop &&
         earlierRun.colorScheme !== run.colorScheme &&
         JSON.stringify(earlierRun.ariaSnapshots) === JSON.stringify(ariaSnapshots),
     );
@@ -245,7 +271,7 @@ function hasSameTreeWithoutFindings(firstTree: PageTree, secondTree: PageTree): 
   return firstNodes.every((node) => getComparableNodeLine(firstTree, node.index) === getComparableNodeLine(secondTree, node.index));
 }
 
-function formatTreeDifferences(tree: PageTree, sameTree: PageTree, sameColorScheme: string, shouldShowColors: boolean): string[] {
+function formatTreeDifferences(tree: PageTree, sameTree: PageTree, sameRunLabel: string, shouldShowColors: boolean): string[] {
   const view = createTreeView(tree, shouldShowColors);
   const differentIndexes = tree.page.nodes
     .map((node) => node.index)
@@ -257,10 +283,10 @@ function formatTreeDifferences(tree: PageTree, sameTree: PageTree, sameColorSche
     });
 
   if (differentIndexes.length === 0) {
-    return [`tree: same as ${sameColorScheme}`];
+    return [`tree: same as ${sameRunLabel}`];
   }
 
-  return [`tree: same as ${sameColorScheme}, differences:`, ...differentIndexes.map((index) => createNodeLine(view, [index], 1, 1))];
+  return [`tree: same as ${sameRunLabel}, differences:`, ...differentIndexes.map((index) => createNodeLine(view, [index], 1, 1))];
 }
 
 export function createPageTree(page: PageMeasurement, analysis: Analysis): PageTree {

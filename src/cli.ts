@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { createSession, format, getTargetUrl, readingGuideText } from './index.ts';
-import type { ColorScheme, FormatOptions, MeasureOptions, PageScript, ReportDetail, Viewport } from './types.ts';
+import type { ColorScheme, FormatOptions, MeasureOptions, PageScript, ReportDetail, ScrollStop, Viewport } from './types.ts';
 
 const usageText = `usage: pxtree <url|host|file> [flags]
        pxtree guide    print the reading guide
@@ -14,7 +14,7 @@ const usageText = `usage: pxtree <url|host|file> [flags]
   --viewport <WxH[,WxH...]>   default 1280x800; a width alone like 390 gets a matching height
   --scheme <light|dark|light,dark>
   --dpr <n>
-  --scroll <y|x,y|selector>
+  --scroll <y|end|selector[,...]>   one run per stop
   --script <file|code>
   --wait <ms|selector>
   --element <selector>
@@ -98,17 +98,47 @@ function parsePositiveNumber(flagName: string, numberText: string): number {
   return parsedNumber;
 }
 
-function parseScroll(scrollText: string): MeasureOptions['scroll'] {
-  if (/^\d+$/.test(scrollText)) {
-    return { x: 0, y: Number(scrollText) };
+/** Splits at commas outside parentheses, brackets and quotes, so a selector like `:is(h2, h3)` stays one stop. */
+function splitTopLevelCommas(listText: string): string[] {
+  const listItems: string[] = [];
+  let itemStart = 0;
+  let nestingDepth = 0;
+  let openQuote: string | null = null;
+
+  for (let position = 0; position < listText.length; position++) {
+    const character = listText[position];
+
+    if (openQuote !== null) {
+      if (character === openQuote) {
+        openQuote = null;
+      }
+    } else if (character === '"' || character === "'") {
+      openQuote = character;
+    } else if (character === '(' || character === '[') {
+      nestingDepth++;
+    } else if (character === ')' || character === ']') {
+      nestingDepth--;
+    } else if (character === ',' && nestingDepth === 0) {
+      listItems.push(listText.slice(itemStart, position));
+      itemStart = position + 1;
+    }
   }
 
-  const coordinatesMatch = /^(\d+),(\d+)$/.exec(scrollText);
-  if (coordinatesMatch !== null) {
-    return { x: Number(coordinatesMatch[1]), y: Number(coordinatesMatch[2]) };
-  }
+  listItems.push(listText.slice(itemStart));
 
-  return scrollText;
+  return listItems;
+}
+
+/** A comma list of stops: a y offset, `end` for the bottom, or a selector. */
+function parseScrollStops(scrollText: string): ScrollStop[] {
+  return splitTopLevelCommas(scrollText).map((stopText) => {
+    const trimmedStopText = stopText.trim();
+    if (trimmedStopText === '') {
+      throw new UsageError(`bad --scroll: ${scrollText}, expected stops like 0,900,end or '#pricing'`);
+    }
+
+    return /^\d+$/.test(trimmedStopText) ? Number(trimmedStopText) : trimmedStopText;
+  });
 }
 
 const reportDetails: ReportDetail[] = ['tree', 'findings', 'summary', 'changes', 'none'];
@@ -255,7 +285,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
   }
 
   if (flagValues.scroll !== undefined) {
-    measureOptions.scroll = parseScroll(flagValues.scroll);
+    measureOptions.scroll = parseScrollStops(flagValues.scroll);
   }
 
   if (flagValues.wait !== undefined) {

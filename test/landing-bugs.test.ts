@@ -67,7 +67,7 @@ describe('landing-bugs.html at two viewports and two schemes, scrolled to #prici
   });
 
   test('the dark footer column has low contrast, named with its context', () => {
-    assert.match(output, /\n {2}contrast 2\.1 ×3, text #4a4f58: div\.footer-legal li\n/);
+    assert.match(output, /\n {2}contrast 2\.1 ×3, text #4a4f58: div\.footer-legal li 1 of 3, div\.footer-legal li 2 of 3, div\.footer-legal li 3 of 3\n/);
   });
 
   test('the nav CTA overflows top and bottom as one fact', () => {
@@ -88,7 +88,9 @@ describe('landing-bugs.html at two viewports and two schemes, scrolled to #prici
   });
 
   test('each run keeps its own summary and there is no across block', () => {
-    const darkContrastLines = reportLines.filter((line) => line === '  contrast 2.1 ×3, text #4a4f58: div.footer-legal li');
+    const darkContrastLines = reportLines.filter(
+      (line) => line === '  contrast 2.1 ×3, text #4a4f58: div.footer-legal li 1 of 3, div.footer-legal li 2 of 3, div.footer-legal li 3 of 3',
+    );
 
     assert.ok(!reportLines.includes('across runs:'), reportLines.join('\n'));
     assert.equal(darkContrastLines.length, 2, reportLines.join('\n'));
@@ -116,7 +118,7 @@ describe('landing-bugs.html with the demo dialog open', () => {
 
   test('the dialog body cutting its form reaches the summary', () => {
     assert.ok(reportLines.includes('  clipped bottom 34 by form.modal-body: input#demo-email'), reportLines.join('\n'));
-    assert.ok(reportLines.includes('  clipped out by form.modal-body ×3: form.modal-body label, input#demo-size, div.modal-actions'), reportLines.join('\n'));
+    assert.ok(reportLines.includes('  clipped out by form.modal-body ×3: form.modal-body label 3 of 3, input#demo-size, div.modal-actions'), reportLines.join('\n'));
   });
 
   test('the clipper counts the children it cuts, and a clipped-out line carries the finding instead of the tag', () => {

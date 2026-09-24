@@ -214,6 +214,7 @@ function createRun(page: PageMeasurement, analysis: Analysis, overrides: Partial
   return {
     viewport: { width: page.viewport.width, height: page.viewport.height },
     colorScheme: page.colorScheme,
+    scrollStop: 0,
     status: 200,
     settle: { stillMovingName: null },
     devicePixelRatio: page.devicePixelRatio,
@@ -1127,6 +1128,28 @@ describe('summary', () => {
     assert.equal(reportLines[2], '  contrast 2.1 ×2, text #4a4f58: div.footer-legal li, div.footer-legal li.flex');
   });
 
+  test('a name that siblings share gets its position among them, after the ancestor in front', () => {
+    const contrast: FindingSpec = { kind: 'contrast', text: 'contrast 2.1', summaryText: 'contrast {n}', amount: 2.1, textColor: '#4a4f58' };
+    const paragraphs: NodeSpec[] = Array.from({ length: 5 }, (_, position) => ({
+      name: 'p',
+      size: [10, 10],
+      findings: position === 2 ? [contrast] : [],
+    }));
+    const reportLines = formatPage({
+      roots: [
+        {
+          name: 'body',
+          size: [1280, 800],
+          children: [
+            { name: 'section.claims', size: [10, 50], children: [...paragraphs, { name: 'a.more', size: [10, 10], findings: [contrast] }] },
+          ],
+        },
+      ],
+    });
+
+    assert.equal(reportLines[2], '  contrast 2.1 ×2, text #4a4f58: section.claims p 3 of 5, a.more');
+  });
+
   test('no findings', () => {
     const reportLines = formatPage({ roots: [{ name: 'body', size: [1280, 800] }] });
 
@@ -1506,6 +1529,27 @@ describe('several runs', () => {
       'tree: same as light, differences:',
       '  li "Privacy" 100x20 @0,40 [!! contrast 2.1]',
     ].join('\n'));
+  });
+
+  test('a later scroll stop with the same tree prints only the lines whose findings differ, named by the previous stop', () => {
+    const createSpec = (hasCover: boolean): PageSpec => ({
+      roots: [
+        {
+          name: 'body',
+          size: [1280, 1800],
+          children: [
+            { name: 'h1', text: 'Title', size: [300, 40] },
+            { name: 'h2', text: 'Pricing', size: [300, 40], at: [0, 900], findings: hasCover ? [{ kind: 'covered', text: 'covered top 24 by header.site' }] : [] },
+          ],
+        },
+      ],
+    });
+    const top = createPage(createSpec(false));
+    const pricing = createPage({ ...createSpec(true), page: { scroll: { x: 0, y: 900, maxX: 0, maxY: 1000 } } });
+    const runs = [createRun(top.page, top.analysis), createRun(pricing.page, pricing.analysis, { scrollStop: '#pricing' })];
+    const runBlocks = format({ target: top.page.url, runs, error: null }).split('\n\n');
+
+    assert.deepEqual(runBlocks[1].split('\n').slice(-2), ['tree: same as scroll 0, differences:', '  h2 "Pricing" 300x40 @0,900 [!! covered top 24 by header.site]']);
   });
 
   test('a second scheme whose tree differs prints in full', () => {

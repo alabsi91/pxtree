@@ -82,9 +82,21 @@ test('the server carries standing instructions', () => {
   const instructions = client.getInstructions() ?? '';
 
   assert.match(instructions, /after every CSS or markup change/);
-  assert.match(instructions, /say so once and never mention it again/);
-  assert.match(instructions, /Never paste the output to the user/);
+  assert.match(instructions, /\nNothing to change: one line like /);
+  assert.match(instructions, /\nChanges made: one line per change, what and where, then one line per decision the user must make\.\n/);
+  assert.match(instructions, /\nNever explain why a finding was fine\./);
   assert.match(instructions, /If the pxtree skill is loaded, skip the guide tool/);
+});
+
+test('measure takes an array of scroll stops and returns one run per stop', async () => {
+  const result = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/reveal.html', diff: false, report: 'summary', scroll: [0, 'end'] } });
+  const runBlocks = getResultText(result).split('\n\n');
+
+  assert.notEqual(result.isError, true, getResultText(result));
+  assert.deepEqual(
+    runBlocks.map((runBlock) => runBlock.match(/scroll \d+\/\d+/)?.[0]),
+    ['scroll 0/2800', 'scroll 2800/2800'],
+  );
 });
 
 test('inputs are bounded: viewport sides, viewport count and timeout', async () => {

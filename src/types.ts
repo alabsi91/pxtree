@@ -359,6 +359,9 @@ export interface Viewport {
 
 export type ColorScheme = 'light' | 'dark';
 
+/** A window y offset, 'end' for the bottom of the page, or a selector that scrolls its element to the top. */
+export type ScrollStop = number | string;
+
 /** Code that runs in Node with the Playwright page. */
 export type PageScript = (page: import('playwright-core').Page) => Promise<void>;
 
@@ -374,8 +377,11 @@ export interface MeasureOptions {
   colorSchemes?: ColorScheme[];
   /** Default 1. */
   devicePixelRatio?: number;
-  /** Window scroll before measuring, as coordinates or a selector. Default { x: 0, y: 0 }. */
-  scroll?: { x: number; y: number } | string;
+  /**
+   * Where to scroll the window before measuring: a y offset, 'end' for the bottom, or a selector to bring to the top.
+   * A list measures each stop in turn, one run per stop. Default 0.
+   */
+  scroll?: ScrollStop | ScrollStop[];
   /** Inline code (body of async (page) => {}) or a function. Runs in Node with the Playwright page. */
   script?: string | PageScript;
   /** Text that identifies the script for the cache key. The CLI passes the file content. Default is the script when it is a string. */
@@ -408,10 +414,12 @@ export interface MeasureOptions {
   cacheDirectory?: string | null;
 }
 
-/** One viewport and color scheme of a measure call. */
+/** One viewport, scroll stop and color scheme of a measure call. */
 export interface RunResult {
   viewport: Viewport;
   colorScheme: ColorScheme;
+  /** The scroll stop as it was asked for. */
+  scrollStop: ScrollStop;
   /** HTTP status. null when there was no response. */
   status: number | null;
   /** What settling saw before the measurement. */
@@ -457,7 +465,7 @@ export interface FontFallback {
 export interface MeasureResult {
   /** The resolved URL. */
   target: string;
-  /** One run per viewport and color scheme. Runs finished before an error are kept. */
+  /** One run per viewport, scroll stop and color scheme, in that nesting order. Runs finished before an error are kept. */
   runs: RunResult[];
   /** A load, launch, script or measurement failure. null when every run finished. */
   error: { kind: 'load' | 'launch' | 'script' | 'measure'; message: string } | null;
