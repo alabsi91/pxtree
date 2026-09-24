@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -133,8 +133,50 @@ async function fetchOrExit(url) {
   return response;
 }
 
-async function downloadPublisher() {
-  const release = await (await fetchOrExit(publisherReleaseUrl)).json();
+/** Resolves with the latest mcp-publisher release, or undefined when the GitHub API cannot be reached. */
+async function fetchLatestPublisherRelease() {
+  try {
+    const response = await fetch(publisherReleaseUrl);
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch {
+    return;
+  }
+}
+
+/** Reads the version from `mcp-publisher --version`, which may print it after a log timestamp on stderr. */
+function getPublisherVersion(publisherPath) {
+  const versionResult = spawnSync(publisherPath, ['--version'], { encoding: 'utf8', shell: isWindows });
+  const versionText = `${versionResult.stdout ?? ''}${versionResult.stderr ?? ''}`;
+  return versionText.match(/mcp-publisher v?(\d+\.\d+\.\d+)/)?.[1];
+}
+
+function getVersionFromTag(tagName) {
+  return tagName.replace(/^v/, '');
+}
+
+function isVersionAtLeast(version, minimumVersion) {
+  if (!version) return false;
+
+  const versionParts = version.split('.').map(Number);
+  const minimumVersionParts = minimumVersion.split('.').map(Number);
+
+  for (let index = 0; index < 3; index++) {
+    if (versionParts[index] !== minimumVersionParts[index]) {
+      return versionParts[index] > minimumVersionParts[index];
+    }
+  }
+
+  return true;
+}
+
+function getDisplayPath(filePath) {
+  const homeDirectory = homedir();
+  return filePath.startsWith(homeDirectory) ? `~${filePath.slice(homeDirectory.length)}` : filePath;
+}
+
+async function downloadPublisher(release) {
   const assetName = getReleaseAssetName();
   const asset = release.assets.find((releaseAsset) => releaseAsset.name === assetName);
   if (!asset) {
@@ -175,22 +217,50 @@ async function downloadPublisher() {
 }
 
 async function getPublisherPath() {
+  const latestRelease = await fetchLatestPublisherRelease();
+
   const publisherPathOnPath = getPublisherPathOnPath();
-  if (publisherPathOnPath) {
+  const pathVersion = publisherPathOnPath ? getPublisherVersion(publisherPathOnPath) : undefined;
+  const pathDescription = publisherPathOnPath ? `PATH has ${pathVersion ?? 'an unknown version'}` : 'PATH has none';
+
+  const cachedPublisherPath = join(getCacheBinDirectory(), getPublisherFileName());
+  const hasCachedPublisher = existsSync(cachedPublisherPath);
+  const cachedVersion = hasCachedPublisher ? getPublisherVersion(cachedPublisherPath) : undefined;
+
+  if (!latestRelease) {
+    if (hasCachedPublisher) {
+      console.log(`GitHub API unreachable, using cached ${getDisplayPath(cachedPublisherPath)} ${cachedVersion ?? 'of unknown version'}`);
+      return cachedPublisherPath;
+    }
+
+    if (publisherPathOnPath) {
+      console.log(`GitHub API unreachable and no cached binary, using ${publisherPathOnPath} ${pathVersion ?? 'of unknown version'}`);
+      return publisherPathOnPath;
+    }
+
+    exitWithMessage('GitHub API unreachable and no mcp-publisher on PATH or in the cache');
+  }
+
+  const latestVersion = getVersionFromTag(latestRelease.tag_name);
+
+  if (isVersionAtLeast(pathVersion, latestVersion)) {
+    console.log(`using ${publisherPathOnPath} ${pathVersion}, latest release is ${latestVersion}`);
     return publisherPathOnPath;
   }
 
-  const cachedPublisherPath = join(getCacheBinDirectory(), getPublisherFileName());
-  if (existsSync(cachedPublisherPath)) {
+  if (isVersionAtLeast(cachedVersion, latestVersion)) {
+    console.log(`using ${getDisplayPath(cachedPublisherPath)} ${cachedVersion}, ${pathDescription}`);
     return cachedPublisherPath;
   }
 
-  return downloadPublisher();
+  const cacheDescription = hasCachedPublisher ? `cache had ${cachedVersion ?? 'an unknown version'}` : 'cache was empty';
+  const downloadedPublisherPath = await downloadPublisher(latestRelease);
+  console.log(`using ${getDisplayPath(downloadedPublisherPath)} ${latestVersion}, ${pathDescription}, ${cacheDescription}`);
+  return downloadedPublisherPath;
 }
 
 async function publishToRegistry() {
   const publisherPath = await getPublisherPath();
-  console.log(`using ${publisherPath}`);
 
   if (isDryRun) {
     const { exitCode } = await runCommand(publisherPath, ['--help']);

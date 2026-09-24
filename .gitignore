@@ -39,3 +39,6 @@ $RECYCLE.BIN/
 # Linux
 *~
 .directory
+
+# MCP Registry publisher login tokens
+.mcpregistry_*
