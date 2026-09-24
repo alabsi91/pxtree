@@ -365,5 +365,5 @@ Each fixture is a small static page with no external resources, and each has at 
 See README. Publishing is by hand:
 
 1. `npm test`, then `npm publish`.
-2. `mcp-publisher login github`, then `mcp-publisher publish`.
+2. MCP Registry: `mcp-publisher login github`, then `mcp-publisher publish`. The binary comes from the releases of github.com/modelcontextprotocol/registry. The npm package named `mcp-publisher` is an unrelated tool, never `npx` it.
 3. The versions in `package.json`, `server.json` and `.claude-plugin/plugin.json` must match (`test/versions.test.ts`).
