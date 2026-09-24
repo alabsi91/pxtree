@@ -106,6 +106,13 @@ test('measure takes an array of scroll stops and returns one run per stop', asyn
   );
 });
 
+test('measure takes a digit string scroll stop as a y offset', async () => {
+  const result = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/reveal.html', diff: false, report: 'summary', scroll: '900' } });
+
+  assert.notEqual(result.isError, true, getResultText(result));
+  assert.match(getResultText(result), /scroll 900\/2800/);
+});
+
 test('inputs are bounded: viewport sides, viewport count and timeout', async () => {
   const tooWide = await client.callTool({ name: 'measure', arguments: { target: 'test/fixtures/state.html', viewports: [{ width: 10001, height: 800 }] } });
   const tooMany = await client.callTool({

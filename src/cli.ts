@@ -137,7 +137,7 @@ function parseScrollStops(scrollText: string): ScrollStop[] {
       throw new UsageError(`bad --scroll: ${scrollText}, expected stops like 0,900,end or '#pricing'`);
     }
 
-    return /^\d+$/.test(trimmedStopText) ? Number(trimmedStopText) : trimmedStopText;
+    return trimmedStopText;
   });
 }
 
@@ -150,10 +150,6 @@ function parseReportDetail(reportText: string): ReportDetail {
   }
 
   return reportDetail;
-}
-
-function parseWait(waitText: string): number | string {
-  return /^\d+$/.test(waitText) ? Number(waitText) : waitText;
 }
 
 /** A script argument is a file when it exists, or when it is one path-like word ending in a script extension. */
@@ -289,7 +285,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
   }
 
   if (flagValues.wait !== undefined) {
-    measureOptions.wait = parseWait(flagValues.wait);
+    measureOptions.wait = flagValues.wait;
   }
 
   if (flagValues.timeout !== undefined) {

@@ -259,6 +259,32 @@ test('reveal: a list of scroll stops measures one run per stop, and a stop that 
   assert.equal(runBlocks[2].split('\n').at(-1), 'tree: same as scroll .feature-two');
 });
 
+test('reveal: a digit string scroll stop is a y offset', async () => {
+  const singleStopText = (await formatFixture(session, 'reveal', { scroll: '900' })).join('\n');
+  const listReportText = (await formatFixture(session, 'reveal', { scroll: ['0', '.feature-two', 'end'] })).join('\n');
+  const listRunBlocks = listReportText.split('\n\n');
+
+  assert.match(singleStopText, /scroll 900\/2800/);
+  assert.deepEqual(
+    listRunBlocks.map((runBlock) => runBlock.split('\n')[0].match(/scroll \d+\/\d+/)?.[0]),
+    ['scroll 0/2800', 'scroll 1800/2800', 'scroll 2800/2800'],
+  );
+});
+
+test('reveal: a lone selector stop lands on the element after the reveal transitions finish', async () => {
+  const reportLines = await formatFixture(session, 'reveal', { scroll: '.feature-two', report: 'summary' });
+
+  assert.match(reportLines[0], /scroll 1800\/2800/);
+});
+
+test('reveal: a scroll selector that matches nothing or is not valid CSS fails with one line', async () => {
+  const missingResult = await session.measure(getFixtureUrl('reveal'), { cacheDirectory: null, scroll: '.missing' });
+  const invalidResult = await session.measure(getFixtureUrl('reveal'), { cacheDirectory: null, scroll: '9px0' });
+
+  assert.equal(missingResult.error?.message, 'scroll failed: no element matches .missing');
+  assert.equal(invalidResult.error?.message, 'scroll failed: 9px0 is not a valid selector');
+});
+
 test('reveal: the since-last-run key includes the scroll stop', async () => {
   const cacheDirectory = join(temporaryDirectory, 'scroll-stop-cache');
 

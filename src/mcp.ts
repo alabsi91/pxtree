@@ -31,34 +31,34 @@ const viewportSideSchema = z.number().int().min(1).max(maxViewportSide);
 const scrollStopSchema = z.union([z.number().nonnegative(), z.string().min(1)]);
 
 const measureInputSchema = {
-  target: z.string().describe('URL, host like localhost:5173, or HTML file path under the working directory'),
+  target: z.string().describe('A string: URL, host like localhost:5173, or HTML file path under the working directory'),
   viewports: z
     .array(z.object({ width: viewportSideSchema, height: viewportSideSchema }))
     .max(maxViewportCount)
     .optional()
-    .describe('Default [{ width: 1280, height: 800 }]'),
-  schemes: z.array(z.enum(['light', 'dark'])).optional().describe('prefers-color-scheme per run. Default ["light"]'),
+    .describe('An array of { width, height } with integer numbers, one run each. Default [{ width: 1280, height: 800 }]'),
+  schemes: z.array(z.enum(['light', 'dark'])).optional().describe('An array of "light" and "dark", the prefers-color-scheme per run. Default ["light"]'),
   scroll: z
     .union([scrollStopSchema, z.array(scrollStopSchema).min(1).max(maxScrollStopCount)])
     .optional()
-    .describe('A window y offset, "end" for the bottom, or a selector to scroll to the top. An array measures each stop in turn, one run per stop. Default 0'),
-  element: z.string().optional().describe('Print only elements matching this selector and their ancestor lines'),
-  children: z.boolean().optional().describe('With element: include what is inside the matches. Default true'),
-  colors: z.boolean().optional().describe('Print hex colors in [text] and [renders]'),
-  wait: z.union([z.number().nonnegative(), z.string()]).optional().describe('After the script: milliseconds to sleep, or a selector to wait for'),
-  script: z.string().optional().describe('Body of async (page) => {} run with the Playwright page before measuring'),
-  screenshot: z.boolean().optional().describe('Save a PNG per run under the OS temp directory and return its path'),
-  timeout: z.number().positive().max(maxTimeoutMs).optional().describe('Milliseconds to reach DOMContentLoaded. Default 30000'),
-  diff: z.boolean().optional().describe('Compare with the previous run of the same target and settings. Default true'),
+    .describe('A stop or an array of stops: a number or digit string is a window y offset, "end" is the bottom, anything else is a CSS selector to scroll to the top. An array measures each stop in turn, one run per stop. Default 0'),
+  element: z.string().optional().describe('A CSS selector string: print only matching elements and their ancestor lines'),
+  children: z.boolean().optional().describe('A boolean. With element: include what is inside the matches. Default true'),
+  colors: z.boolean().optional().describe('A boolean: print hex colors in [text] and [renders]'),
+  wait: z.union([z.number().nonnegative(), z.string()]).optional().describe('After the script: a number or digit string of milliseconds to sleep, or a CSS selector string to wait for'),
+  script: z.string().optional().describe('A string: body of async (page) => {} run with the Playwright page before measuring'),
+  screenshot: z.boolean().optional().describe('A boolean: save a PNG per run under the OS temp directory and return its path'),
+  timeout: z.number().positive().max(maxTimeoutMs).optional().describe('A number of milliseconds to reach DOMContentLoaded. Default 30000'),
+  diff: z.boolean().optional().describe('A boolean: compare with the previous run of the same target and settings. Default true'),
   diffKey: z
     .string()
     .optional()
-    .describe('A name that replaces script and wait in the since-last-run key, to compare a scripted run with a plain run that used the same name'),
+    .describe('A name string that replaces script and wait in the since-last-run key, to compare a scripted run with a plain run that used the same name'),
   report: z
     .enum(['tree', 'findings', 'summary', 'changes', 'none'])
     .optional()
-    .describe('tree: everything. findings: only lines with findings and their ancestors. summary: no tree. changes: facts line and since last run. none: facts line only. Default tree'),
-  aria: z.boolean().optional().describe("Add Playwright's aria snapshot of the page, or of each element match, after the report"),
+    .describe('One of "tree", "findings", "summary", "changes", "none". tree: everything. findings: only lines with findings and their ancestors. summary: no tree. changes: facts line and since last run. none: facts line only. Default tree'),
+  aria: z.boolean().optional().describe("A boolean: add Playwright's aria snapshot of the page, or of each element match, after the report"),
 };
 
 type MeasureInput = z.infer<z.ZodObject<typeof measureInputSchema>>;

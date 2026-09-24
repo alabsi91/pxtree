@@ -361,7 +361,7 @@ export interface Viewport {
 
 export type ColorScheme = 'light' | 'dark';
 
-/** A window y offset, 'end' for the bottom of the page, or a selector that scrolls its element to the top. */
+/** A window y offset as a number or digit string ('900' or '900px'), 'end' for the bottom of the page, or a CSS selector that scrolls its element to the top. */
 export type ScrollStop = number | string;
 
 /** Code that runs in Node with the Playwright page. */
@@ -380,7 +380,7 @@ export interface MeasureOptions {
   /** Default 1. */
   devicePixelRatio?: number;
   /**
-   * Where to scroll the window before measuring: a y offset, 'end' for the bottom, or a selector to bring to the top.
+   * Where to scroll the window before measuring: a y offset as a number or digit string, 'end' for the bottom, or a CSS selector to bring to the top.
    * A list measures each stop in turn, one run per stop. Default 0.
    */
   scroll?: ScrollStop | ScrollStop[];
@@ -393,7 +393,7 @@ export interface MeasureOptions {
    * earlier run that used the same name, with or without a script. Default: none.
    */
   diffKey?: string;
-  /** Milliseconds to sleep, or a selector to wait for, after the script. */
+  /** Milliseconds to sleep as a number or digit string ('500' or '500ms'), or a CSS selector to wait for, after the script. */
   wait?: number | string;
   /** Print only these elements. */
   elementSelector?: string;

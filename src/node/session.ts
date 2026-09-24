@@ -147,7 +147,22 @@ function getScreenshotPath(basePath: string, viewport: Viewport, colorScheme: Co
 function getScrollStops(scroll: MeasureOptions['scroll']): ScrollStop[] {
   const scrollStops = scroll === undefined ? [] : [scroll].flat();
 
-  return scrollStops.length === 0 ? [0] : scrollStops;
+  return scrollStops.length === 0 ? [0] : scrollStops.map(normalizeScrollStop);
+}
+
+/** Turns a digit string like '900' or '900px' into a number. Any other string stays as it is. */
+function normalizeDigitString(value: number | string, unitSuffix: string): number | string {
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  const digitMatch = new RegExp(`^(\\d+)(?:${unitSuffix})?$`, 'i').exec(value.trim());
+
+  return digitMatch === null ? value : Number(digitMatch[1]);
+}
+
+function normalizeScrollStop(scrollStop: ScrollStop): ScrollStop {
+  return normalizeDigitString(scrollStop, 'px');
 }
 
 function createPageScript(script: string | PageScript): PageScript {
@@ -335,14 +350,24 @@ async function scrollPage(page: Page, scrollStop: ScrollStop): Promise<void> {
     return;
   }
 
-  const hasScrolled = await page.evaluate((selector) => {
-    const element = document.querySelector(selector);
+  const scrollOutcome = await page.evaluate((selector) => {
+    let element: Element | null;
+    try {
+      element = document.querySelector(selector);
+    } catch {
+      return 'invalid-selector';
+    }
+
     element?.scrollIntoView({ block: 'start', behavior: 'instant' });
 
-    return element !== null;
+    return element === null ? 'no-match' : 'scrolled';
   }, scrollStop);
 
-  if (!hasScrolled) {
+  if (scrollOutcome === 'invalid-selector') {
+    throw new MeasureError('script', `scroll failed: ${scrollStop} is not a valid selector`);
+  }
+
+  if (scrollOutcome === 'no-match') {
     throw new MeasureError('script', `scroll failed: no element matches ${scrollStop}`);
   }
 }
@@ -420,12 +445,13 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
     const devicePixelRatio = options.devicePixelRatio ?? 1;
     const scrollStops = getScrollStops(options.scroll);
     const hasSeveralScrollStops = scrollStops.length > 1;
+    const wait = options.wait === undefined ? undefined : normalizeDigitString(options.wait, 'ms');
     const timeoutMs = options.timeoutMs ?? 30000;
     const shouldReveal = options.shouldReveal ?? true;
     const shouldIncludeChildren = options.shouldIncludeChildren ?? true;
     const cacheDirectory = options.cacheDirectory === undefined ? getDefaultCacheDirectory() : options.cacheDirectory;
     const scriptCacheText = options.scriptCacheText ?? (typeof options.script === 'string' ? options.script : null);
-    const snapshotStateKey = options.diffKey === undefined ? [scriptCacheText, options.wait ?? null] : [options.diffKey];
+    const snapshotStateKey = options.diffKey === undefined ? [scriptCacheText, wait ?? null] : [options.diffKey];
     const hasSeveralRuns = viewports.length * scrollStops.length * colorSchemes.length > 1;
     const shouldCaptureAriaSnapshot = options.shouldCaptureAriaSnapshot ?? false;
     const shouldMeasurePage = (options.shouldMeasurePage ?? true) || cacheDirectory !== null || options.elementSelector !== undefined;
@@ -446,8 +472,8 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
         await runPageScript(page, options.script);
       }
 
-      if (options.wait !== undefined) {
-        await waitAfterScript(page, options.wait);
+      if (wait !== undefined) {
+        await waitAfterScript(page, wait);
       }
 
       return stateTextBeforeScript;
@@ -549,6 +575,7 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
           const stopLoadFacts = isFirstScrollStop ? loadFacts : { ...loadFacts, budgetStartTime: Date.now() };
 
           await page.emulateMedia({ colorScheme: colorSchemes[0] });
+          await settlePage(page);
           await scrollPage(page, scrollStops[scrollStopPosition]);
 
           const stateTextBeforeScript = isFirstScrollStop ? await runScriptAndWait(page) : null;
