@@ -1,6 +1,6 @@
 {
   "name": "pxtree",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "description": "Measures how a webpage actually renders and prints it as compact text for AI coding agents.",
   "keywords": [
     "mcp",
