@@ -72,6 +72,7 @@ function createTextInfo(overrides: Partial<TextInfo>): TextInfo {
     background: '#ffffff',
     isLarge: false,
     truncation: null,
+    singleLineWidth: null,
     ...overrides,
   };
 }

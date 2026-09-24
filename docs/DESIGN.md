@@ -341,10 +341,12 @@ src/browser/settle.ts     settlePage, revealByScrolling
 src/findings/*.ts         layouts (@x,y, gaps) and analyze(): every finding and its suppression
 src/format/*.ts           format(), summary, snapshots and the since-last-run diff
 src/node/*.ts             session (launch, per-run pipeline, script, screenshot, aria, fonts) and the cache
-src/cli.ts, src/mcp.ts    CLI flags and exit codes; the MCP server with the measure and guide tools
+src/cli.ts, src/mcp.ts    CLI flags and exit codes; the MCP server with the measure and read_me_first tools
 ```
 
-`src/browser/*` runs only in the page and imports only types. `src/findings/*`, `src/format/*` and `src/guide.ts` are pure. The build bundles the browser code as an IIFE that the session installs with `context.addInitScript`, and writes `skills/pxtree/SKILL.md` from `scripts/skill.ts`.
+`src/browser/*` runs only in the page and imports only types. `src/findings/*`, `src/format/*` and `src/guide.ts` are pure. The build bundles the browser code as an IIFE that the session installs with `context.addInitScript`, and writes `skills/pxtree/SKILL.md` from `scripts/skill.ts`: its frontmatter plus `skillBodyText` from `src/guide.ts`.
+
+The MCP server carries the same know-how without a skill install. Its instructions, under 300 characters, say what pxtree is and to call `read_me_first` once per session. `read_me_first` returns `skillBodyText`, the skill file without its frontmatter, which names the `measure` input for each CLI flag. The `measure` description stays under 800 characters because every request carries it.
 
 ## 7. Testing
 

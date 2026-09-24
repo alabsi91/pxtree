@@ -42,6 +42,7 @@ function createTextInfo(inkRect: Rect, overrides: Partial<TextInfo> = {}): TextI
     background: '#ffffff',
     isLarge: false,
     truncation: null,
+    singleLineWidth: null,
     ...overrides,
   };
 }

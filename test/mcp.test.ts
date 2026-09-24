@@ -4,7 +4,8 @@ import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { readingGuideText } from '../src/guide.ts';
+import { createSkillText } from '../scripts/skill.ts';
+import { reportingRulesText, skillBodyText } from '../src/guide.ts';
 
 const projectDirectory = fileURLToPath(new URL('..', import.meta.url));
 
@@ -33,21 +34,28 @@ function getResultText(result: Awaited<ReturnType<Client['callTool']>>): string 
   return textContent.map((contentItem) => contentItem.text).join('\n');
 }
 
-test('lists a short measure tool and a guide tool', async () => {
+test('lists a short measure tool and a read_me_first tool', async () => {
   const { tools } = await client.listTools();
   const measureTool = tools.find((tool) => tool.name === 'measure')!;
+  const readMeFirstTool = tools.find((tool) => tool.name === 'read_me_first')!;
+  const measureDescription = measureTool.description ?? '';
 
-  assert.deepEqual(tools.map((tool) => tool.name), ['measure', 'guide']);
-  assert.ok(Buffer.byteLength(measureTool.description ?? '') < 1500, measureTool.description);
-  assert.match(measureTool.description ?? '', /call the guide tool once before the first measure/i);
-  assert.match(measureTool.description ?? '', /If the pxtree skill is loaded, skip the guide tool/);
+  assert.deepEqual(tools.map((tool) => tool.name), ['measure', 'read_me_first']);
+  assert.ok(measureDescription.length < 800, `${measureDescription.length} characters`);
+  assert.match(measureDescription, /Call read_me_first once per session before the first measure/);
+  assert.doesNotMatch(measureDescription, /skill/);
+  assert.equal(readMeFirstTool.description, 'Read once per session before the first measure. How to use pxtree and how to read its output.');
   assert.ok('target' in (measureTool.inputSchema.properties ?? {}));
 });
 
-test('the guide tool returns the reading guide', async () => {
-  const result = await client.callTool({ name: 'guide', arguments: {} });
+test('the read_me_first tool returns the skill body without its frontmatter', async () => {
+  const result = await client.callTool({ name: 'read_me_first', arguments: {} });
+  const resultText = getResultText(result);
 
-  assert.equal(getResultText(result), readingGuideText);
+  assert.equal(resultText, skillBodyText);
+  assert.equal(createSkillText().replace(/^---\n[\s\S]*?\n---\n\n/, ''), resultText);
+  assert.ok(resultText.includes(reportingRulesText), 'carries the reporting shapes');
+  assert.match(resultText, /Over MCP, the flags are inputs of the `measure` tool/);
 });
 
 test('measure returns the formatted report', async () => {
@@ -81,11 +89,10 @@ test('measure with report none and neither aria nor screenshot returns a tool er
 test('the server carries standing instructions', () => {
   const instructions = client.getInstructions() ?? '';
 
-  assert.match(instructions, /after every CSS or markup change/);
-  assert.match(instructions, /\nNothing to change: one line like /);
-  assert.match(instructions, /\nChanges made: one line per change, what and where, then one line per decision the user must make\.\n/);
-  assert.match(instructions, /\nNever explain why a finding was fine\./);
-  assert.match(instructions, /If the pxtree skill is loaded, skip the guide tool/);
+  assert.match(instructions, /^pxtree measures how a webpage actually renders/);
+  assert.match(instructions, /Call read_me_first once per session before measuring\.$/);
+  assert.doesNotMatch(instructions, /skill/);
+  assert.ok(instructions.length < 300, `${instructions.length} characters`);
 });
 
 test('measure takes an array of scroll stops and returns one run per stop', async () => {

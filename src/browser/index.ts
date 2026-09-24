@@ -2,9 +2,19 @@ import type { FontRequest, MeasurePageOptions, PageMeasurement, PxtreeInPage } f
 import { measureCoverageAndColors } from './coverage.ts';
 import { getEntriesIntersection, getStuckStates, roundToHundredth } from './geometry.ts';
 import { revealByScrolling, settlePage } from './settle.ts';
-import { type WalkResult, closedShadowRoots, getAllShadowRoots, getTopLayerElements, walkPage } from './walk.ts';
+import {
+  type WalkResult,
+  type WalkedNode,
+  closedShadowRoots,
+  getAllShadowRoots,
+  getSingleLineWidths,
+  getTopLayerElements,
+  hasForcedLineBreak,
+  walkPage,
+} from './walk.ts';
 
 const maxStickyProbeCount = 20;
+const maxSingleLineProbeCount = 200;
 
 declare global {
   var __pxtree: PxtreeInPage | undefined;
@@ -34,6 +44,27 @@ function markStuckNodes(walk: WalkResult): void {
 
   stickyNodes.forEach((walkedNode, stickyPosition) => {
     walkedNode.record.isStuck = stuckStates[stickyPosition];
+  });
+}
+
+function fillSingleLineWidths(walk: WalkResult): void {
+  const wrappedNodes: WalkedNode[] = [];
+
+  for (const walkedNode of walk.walkedNodes) {
+    if (wrappedNodes.length >= maxSingleLineProbeCount) break;
+
+    const isWrapped = (walkedNode.record.textInfo?.lineCount ?? 0) >= 2;
+    if (isWrapped && !hasForcedLineBreak(walkedNode.element, walkedNode.style)) {
+      wrappedNodes.push(walkedNode);
+    }
+  }
+
+  if (wrappedNodes.length === 0) return;
+
+  const singleLineWidths = getSingleLineWidths(wrappedNodes.map((walkedNode) => walkedNode.element));
+
+  wrappedNodes.forEach((walkedNode, wrappedPosition) => {
+    walkedNode.record.textInfo!.singleLineWidth = singleLineWidths[wrappedPosition];
   });
 }
 
@@ -114,6 +145,7 @@ function getFontRequests(elements: Element[]): FontRequest[] {
 function measurePage(options: MeasurePageOptions): PageMeasurement {
   const walk = walkPage(options.elementSelector, options.maxNodes);
   markStuckNodes(walk);
+  fillSingleLineWidths(walk);
 
   const sampling = measureCoverageAndColors(walk, options.maxSamples);
   const context = walk.context;

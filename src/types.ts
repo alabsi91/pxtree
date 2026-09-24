@@ -218,6 +218,8 @@ export interface TextInfo {
   isLarge: boolean;
   /** Set when the text is cut off. */
   truncation: { kind: 'ellipsis' | 'clamp' | 'cut'; hiddenPx: number; clampLines: number } | null;
+  /** Width of the own lines laid out as one line. Set when the text wraps to 2 or more lines with no forced break, for up to 200 nodes a page. */
+  singleLineWidth: number | null;
 }
 
 export interface ImageInfo {

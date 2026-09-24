@@ -787,6 +787,10 @@ function getTextTag(textInfo: TextInfo, shouldShowColors: boolean): string {
     textTagParts.push(`${textInfo.lineCount} lines`);
   }
 
+  if (textInfo.singleLineWidth !== null) {
+    textTagParts.push(`${roundPixels(textInfo.singleLineWidth)} on one line`);
+  }
+
   if (shouldShowColors) {
     textTagParts.push(`${textInfo.color ?? 'transparent'} on ${textInfo.background ?? 'image'}`);
 

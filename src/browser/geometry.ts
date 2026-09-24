@@ -592,20 +592,21 @@ export function getFontMetrics(style: CSSStyleDeclaration): FontMetrics {
   return fontMetrics;
 }
 
-// ---------- sticky ----------
+// ---------- style probes ----------
 
-/** Returns, per element, whether it sits away from its flow position right now. */
-export function getStuckStates(elements: Element[]): boolean[] {
-  const stuckBoxes = elements.map((element) => element.getBoundingClientRect());
+/** Appends declarations to each element's style attribute. Returns the attributes as they were, for restoreStyleAttributes. */
+export function addStyleOverride(elements: Element[], declarations: string): Array<string | null> {
   const savedStyleAttributes = elements.map((element) => element.getAttribute('style'));
 
   elements.forEach((element, elementIndex) => {
     const savedStyle = savedStyleAttributes[elementIndex];
-    element.setAttribute('style', `${savedStyle ?? ''}; position: static !important`);
+    element.setAttribute('style', `${savedStyle ?? ''}; ${declarations}`);
   });
 
-  const flowBoxes = elements.map((element) => element.getBoundingClientRect());
+  return savedStyleAttributes;
+}
 
+export function restoreStyleAttributes(elements: Element[], savedStyleAttributes: Array<string | null>): void {
   elements.forEach((element, elementIndex) => {
     const savedStyle = savedStyleAttributes[elementIndex];
 
@@ -615,6 +616,15 @@ export function getStuckStates(elements: Element[]): boolean[] {
       element.setAttribute('style', savedStyle);
     }
   });
+}
+
+/** Returns, per element, whether it sits away from its flow position right now. */
+export function getStuckStates(elements: Element[]): boolean[] {
+  const stuckBoxes = elements.map((element) => element.getBoundingClientRect());
+  const savedStyleAttributes = addStyleOverride(elements, 'position: static !important');
+  const flowBoxes = elements.map((element) => element.getBoundingClientRect());
+
+  restoreStyleAttributes(elements, savedStyleAttributes);
 
   return elements.map((_element, elementIndex) => {
     const topDifference = Math.abs(stuckBoxes[elementIndex].top - flowBoxes[elementIndex].top);

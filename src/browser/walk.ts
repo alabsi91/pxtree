@@ -4,6 +4,7 @@ import {
   type ClipEntry,
   type ClipKind,
   type ColorBytes,
+  addStyleOverride,
   createBox,
   createChildClipEntry,
   createRect,
@@ -22,6 +23,7 @@ import {
   isControlElement,
   isFullInsetClipPath,
   isZeroClipRect,
+  restoreStyleAttributes,
   roundToHundredth,
 } from './geometry.ts';
 
@@ -1130,6 +1132,7 @@ function createTextInfo(
     background: null,
     isLarge: fontSize >= 24 || (fontSize >= 18.66 && fontWeight >= 700),
     truncation: getTruncation(element, style, box, border, textBoxes),
+    singleLineWidth: null,
   };
 }
 
@@ -1169,6 +1172,59 @@ function getOwnLineRects(element: Element, range: Range): DOMRect[] {
   }
 
   return lineRects;
+}
+
+const newlineKeepingCollapseValues = new Set(['preserve', 'preserve-breaks', 'break-spaces']);
+
+/** Whether a `br` or a kept newline breaks the element's own lines. */
+export function hasForcedLineBreak(element: Element, style: CSSStyleDeclaration): boolean {
+  const { childNodes } = getFlatChildNodes(element);
+  const isNewlineKept = newlineKeepingCollapseValues.has(style.whiteSpaceCollapse);
+
+  for (const child of Array.from(childNodes)) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      if (isNewlineKept && (child as Text).data.includes('\n')) {
+        return true;
+      }
+
+      continue;
+    }
+
+    if (!(child instanceof Element)) continue;
+
+    if (child.localName === 'br') {
+      return true;
+    }
+
+    const childStyle = getComputedStyle(child);
+    const isInlineContainer =
+      childStyle.display === 'contents' || (childStyle.display === 'inline' && !leafTags.has(child.localName));
+
+    if (isInlineContainer && hasForcedLineBreak(child, childStyle)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/** Returns, per element, how wide its own lines are when laid out as one line. Lays out the page once. */
+export function getSingleLineWidths(elements: Element[]): number[] {
+  const savedStyleAttributes = addStyleOverride(elements, 'white-space: nowrap !important; width: max-content !important');
+  const range = document.createRange();
+
+  const singleLineWidths = elements.map((element) => {
+    const lineBoxes = getOwnLineRects(element, range)
+      .filter((domRect) => domRect.height > 0)
+      .map((domRect) => createBox(domRect, 0, 0));
+    const lineUnion = getBoxUnion(lineBoxes);
+
+    return lineUnion ? roundToHundredth(lineUnion.right - lineUnion.left) : 0;
+  });
+
+  restoreStyleAttributes(elements, savedStyleAttributes);
+
+  return singleLineWidths;
 }
 
 /** Counts lines among the rects that the node's own clip leaves visible. A rect whose middle is above the current line's bottom joins that line. */

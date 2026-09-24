@@ -73,7 +73,7 @@ Tree lines: \`name "text" WxH @x,y [tags][!! findings] ×N\` (bracket groups fol
 [clips 5 of 8 children]          its overflow hidden or clip cuts 5 of its 8 children fully or partly
 [pad 16 8]                       padding in CSS shorthand order
 [gaps 24] [gaps across 16]       space between children stacked / side by side; \`free 110 at end\` is unused space; several values when they differ
-[text 16/24, 2 lines]            font size / line height px; \`on image\` when the background is unknown; \`fill transparent\` for gradient or transparent text; with --colors \`#e6edf3 on #1e2530, contrast 13.0\`
+[text 16/24, 2 lines, 559 on one line]   font size / line height px; \`W on one line\` is the width of wrapped text laid out unwrapped (not across a br or kept newline, first 200 per page); \`on image\` when the background is unknown; \`fill transparent\` for gradient or transparent text; with --colors \`#e6edf3 on #1e2530, contrast 13.0\`
 [renders background, border-bottom, shadow]   what the box itself paints; also outline, image, control, ::before, ::after
 [shadow root] [shadow root closed] [slotted]   shadow host; light-DOM child drawn through a slot
 [over 100000 px]                 over 100000 px on one axis
@@ -124,8 +124,59 @@ scroll range y 3                   scroll box whose content exceeds it by 1-8 px
 - Text that the page controls prints with quotes as ', brackets as ( ) and › as >, so it cannot fake a tag or a finding.
 `;
 
-/** The reading guide without the reporting rules, for the skill file that prints them at its top. */
-export const readingGuideReferenceText = guideIntroductionText + guideReferenceText;
-
-/** The agent reading guide. `pxtree guide` and the MCP `guide` tool print it verbatim. */
+/** The agent reading guide. `pxtree guide` prints it verbatim. */
 export const readingGuideText = guideIntroductionText + reportingRulesText + guideReferenceText;
+
+const skillUsageText = `# Checking a rendered page with pxtree
+
+## Reporting to the user
+
+${reportingRulesText}Before the first call, check that the dev server answers (\`curl -sI localhost:5173\`), so a down server never costs a measurement that only prints \`could not load\`.
+
+pxtree reports what the browser drew, which the source cannot tell you. Use it when (numbers from 47 planted bugs, text against a viewport screenshot):
+- tap targets: 5 of 6 found, the screenshot 1 of 6
+- clipping by overflow hidden, a dropdown cut by its header included: 3 of 3, the screenshot 0 of 3
+- contrast, light or dark: 4 of 4, the screenshot 3 of 4
+- content under a fixed or sticky bar: 3 of 3, the screenshot 2 of 3
+- a phone width or an open dialog: overflow at 390 4 of 4, cut dialogs 2 of 2
+- tokens: about 540 a run, about 60 with --report summary, against about 1100 for a 1280x800 screenshot
+
+Do not bother when:
+- you check whether something looks centered: off center 2 of 4, a label at the top of a tall button and a 4 px nudged glyph were missed
+- a responsive rule squeezes a layout: 3 of 4, the screenshot 4 of 4
+- the page is a big data table and you need all of it: about 1300 tokens, more than a screenshot
+
+Long sessions:
+- Start with \`--report summary\` (facts, since last run and findings, no tree), then on a big page \`--report findings\` (only the tree lines with findings, under their ancestors' names), then drill into one area with \`--element '<selector>'\`.
+- After a fix, verify it with \`--report changes\`: only the facts line and what changed since the last run.
+- To prototype a fix with \`--script "await page.addStyleTag(…)"\`, give it and a plain baseline run the same \`--diff-key base\`, so since last run compares them.
+- Add \`--aria\` when you check labels, roles or reading order.
+- Measure several regions in one call with \`--scroll 0,'#pricing',end\`, not one call per stop.
+- Take one \`--report none --screenshot shot.png\` at the end, only if the text leaves a doubt.
+
+Command shapes:
+
+\`\`\`
+npx -y pxtree@latest localhost:5173                                  # dev server
+npx -y pxtree@latest ./dist/index.html                               # HTML file
+npx -y pxtree@latest localhost:5173 --viewport 390,1280              # mobile and desktop
+npx -y pxtree@latest localhost:5173 --scheme dark                    # dark mode
+npx -y pxtree@latest localhost:5173 --scroll '#pricing'              # a region below the fold
+npx -y pxtree@latest localhost:5173 --scroll 0,'#pricing',end        # several regions in one call
+npx -y pxtree@latest localhost:5173 --element '.card'                # one component and its ancestors
+npx -y pxtree@latest localhost:5173 --script "await page.click('text=Menu')" --wait '.menu'   # a state: open menu, dialog, hover
+npx -y pxtree@latest localhost:5173 --report summary --aria          # findings plus names, roles and reading order
+npx -y pxtree@latest localhost:5173 --report findings                # only the lines with findings, on a big page
+npx -y pxtree@latest localhost:5173 --report none --screenshot shot.png   # only when the text is not enough
+\`\`\`
+
+Over MCP, the flags are inputs of the \`measure\` tool: the target is \`target\`, \`--viewport 390x844\` is \`viewports: [{ width: 390, height: 844 }]\`, \`--scheme\` is \`schemes\`, \`--diff-key\` is \`diffKey\`, \`--no-diff\` is \`diff: false\`, \`--no-children\` is \`children: false\`, \`--screenshot\` is \`screenshot: true\`, and every other flag keeps its name: \`report\`, \`element\`, \`scroll\`, \`script\`, \`wait\`, \`aria\`, \`colors\`, \`timeout\`.
+
+Text wraps unexpectedly: \`--element 'h1' --viewport 1280,1440,1920 --report tree\` and read \`N lines, W on one line\` against the element's width.
+
+Tags in the tree such as \`[clipped out by …]\`, \`[not painted …]\` and \`[children skipped …]\` are measurements too, so once \`--report summary\` points you somewhere, read the tree there before acting. Fix what the code shows is a bug, run again, and check \`since last run\` shows the change you meant.
+
+`;
+
+/** How to use pxtree and how to read its output. The skill file prints it under its frontmatter, the MCP `read_me_first` tool returns it. */
+export const skillBodyText = skillUsageText + guideIntroductionText + guideReferenceText;

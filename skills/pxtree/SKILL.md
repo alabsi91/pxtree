@@ -51,6 +51,10 @@ npx -y pxtree@latest localhost:5173 --report findings                # only the 
 npx -y pxtree@latest localhost:5173 --report none --screenshot shot.png   # only when the text is not enough
 ```
 
+Over MCP, the flags are inputs of the `measure` tool: the target is `target`, `--viewport 390x844` is `viewports: [{ width: 390, height: 844 }]`, `--scheme` is `schemes`, `--diff-key` is `diffKey`, `--no-diff` is `diff: false`, `--no-children` is `children: false`, `--screenshot` is `screenshot: true`, and every other flag keeps its name: `report`, `element`, `scroll`, `script`, `wait`, `aria`, `colors`, `timeout`.
+
+Text wraps unexpectedly: `--element 'h1' --viewport 1280,1440,1920 --report tree` and read `N lines, W on one line` against the element's width.
+
 Tags in the tree such as `[clipped out by …]`, `[not painted …]` and `[children skipped …]` are measurements too, so once `--report summary` points you somewhere, read the tree there before acting. Fix what the code shows is a bug, run again, and check `since last run` shows the change you meant.
 
 # pxtree: the rendered page as text
@@ -119,7 +123,7 @@ Tree lines: `name "text" WxH @x,y [tags][!! findings] ×N` (bracket groups follo
 [clips 5 of 8 children]          its overflow hidden or clip cuts 5 of its 8 children fully or partly
 [pad 16 8]                       padding in CSS shorthand order
 [gaps 24] [gaps across 16]       space between children stacked / side by side; `free 110 at end` is unused space; several values when they differ
-[text 16/24, 2 lines]            font size / line height px; `on image` when the background is unknown; `fill transparent` for gradient or transparent text; with --colors `#e6edf3 on #1e2530, contrast 13.0`
+[text 16/24, 2 lines, 559 on one line]   font size / line height px; `W on one line` is the width of wrapped text laid out unwrapped (not across a br or kept newline, first 200 per page); `on image` when the background is unknown; `fill transparent` for gradient or transparent text; with --colors `#e6edf3 on #1e2530, contrast 13.0`
 [renders background, border-bottom, shadow]   what the box itself paints; also outline, image, control, ::before, ::after
 [shadow root] [shadow root closed] [slotted]   shadow host; light-DOM child drawn through a slot
 [over 100000 px]                 over 100000 px on one axis

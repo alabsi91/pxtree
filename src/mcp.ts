@@ -7,24 +7,18 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { createSession, format, getTargetUrl, readingGuideText, type MeasureOptions, type Session } from './index.ts';
+import { skillBodyText } from './guide.ts';
+import { createSession, format, getTargetUrl, type MeasureOptions, type Session } from './index.ts';
 
-const measureToolDescription = `Measures how a webpage actually renders in headless Chromium and returns it as compact text: a facts line, changes since the last run, a summary of findings, then one line per element as an indented tree.
+const measureToolDescription = `Measures how a webpage actually renders in headless Chromium and returns it as compact text: a facts line, changes since the last run, a summary of findings, then one line per element as an indented tree. Findings are measurements that passed a threshold, never verdicts.
 
-Findings are measurements that passed a threshold, never verdicts. Judge each one against the code.
+Parameters: target (URL, localhost:5173-style host, or HTML file path), viewports, schemes, scroll, element, children, colors, wait, script (Playwright page code), screenshot, timeout, diff, diffKey, report (tree, findings, summary, changes or none), aria (names, roles, states). One call can return the report, the aria tree and a screenshot together.
 
-Tree line: name "text" WxH @x,y [tags] [!! findings] ×N. WxH is the border box after transforms. @x,y is from the parent's content box, x from the start edge.
+Call read_me_first once per session before the first measure to learn the tags and findings.`;
 
-Parameters: target (URL, localhost:5173-style host, or HTML file path), viewports, schemes, scroll, element, children, colors, wait, script (Playwright page code), screenshot, timeout, diff, diffKey, report (tree, findings for only the lines with findings, summary without the tree, changes, or none), aria (adds the accessibility tree: names, roles, states). One call can return the report, the aria tree and a screenshot together.
+const readMeFirstToolDescription = 'Read once per session before the first measure. How to use pxtree and how to read its output.';
 
-Call the guide tool once before the first measure to learn the tags and findings. If the pxtree skill is loaded, skip the guide tool: the skill already holds the guide.`;
-
-const guideToolDescription = 'Returns the pxtree reading guide: every flag, the output grammar, every tag and finding, and the limits. Call it once before the first measure.';
-
-const serverInstructions = `Run measure after every CSS or markup change. Pass the widths that matter when something reflows, both schemes when a color changed, and every region you need as one scroll array. Findings are measurements, not verdicts. Judge each against the code, then report in one of these shapes and nothing else:
-Nothing to change: one line like "Landing page is clean at 390, 768 and 1280, light and dark.", then one line per side effect.
-Changes made: one line per change, what and where, then one line per decision the user must make.
-Never explain why a finding was fine. If you judged it, the user does not hear about it. Never paste the output. If the pxtree skill is loaded, skip the guide tool: the skill already holds the guide.`;
+const serverInstructions = `pxtree measures how a webpage actually renders and prints it as compact text: sizes, positions, clipping, overflow, truncation and contrast. Call read_me_first once per session before measuring.`;
 
 const maxViewportSide = 10000;
 const maxViewportCount = 10;
@@ -136,18 +130,18 @@ function registerMeasureTool(server: McpServer, session: Session): void {
   });
 }
 
-function registerGuideTool(server: McpServer): void {
-  server.registerTool('guide', { description: guideToolDescription }, () => ({ content: [{ type: 'text', text: readingGuideText }] }));
+function registerReadMeFirstTool(server: McpServer): void {
+  server.registerTool('read_me_first', { description: readMeFirstToolDescription }, () => ({ content: [{ type: 'text', text: skillBodyText }] }));
 }
 
-/** Serves the `measure` and `guide` tools over stdio with one warm browser session. Closes the browser when stdin ends. */
+/** Serves the `measure` and `read_me_first` tools over stdio with one warm browser session. Closes the browser when stdin ends. */
 export async function runMcpServer(): Promise<void> {
   const session = await createSession();
   const packageVersion = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
   const server = new McpServer({ name: 'pxtree', version: packageVersion }, { instructions: serverInstructions });
 
   registerMeasureTool(server, session);
-  registerGuideTool(server);
+  registerReadMeFirstTool(server);
 
   process.stdin.once('end', async () => {
     await server.close();

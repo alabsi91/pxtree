@@ -146,3 +146,11 @@ test('rtl.html measures the children of an ltr island from its left edge', async
   assert.match(findLine(reportLines, 'div.island'), /\[ltr\]/);
   assert.match(findLine(reportLines, 'span.second'), / @50,0/);
 });
+
+test('wrap.html prints the one-line width of wrapped text, but not across a br or on nowrap text', async () => {
+  const reportLines = await formatFixture(session, 'wrap.html');
+
+  assert.match(findLine(reportLines, 'h2.wrapping'), /\[text 24\/32, 2 lines, \d+ on one line\]/);
+  assert.match(findLine(reportLines, 'p.address'), /\[text 16\/24, \d+ lines\]/);
+  assert.match(findLine(reportLines, 'h2.nowrap'), /\[text 24\/32\]/);
+});

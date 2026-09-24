@@ -54,7 +54,7 @@ describe('truncation.html', () => {
 
   test('ellipsis, clamp and cut', () => {
     assert.match(findLine(reportLines, 'p.ellipsis'), /text truncated ellipsis \d+/);
-    assert.match(findLine(reportLines, 'p.clamp'), /\[text \d+\/\d+, 2 lines\].*text clamped 2 lines/);
+    assert.match(findLine(reportLines, 'p.clamp'), /\[text \d+\/\d+, 2 lines, \d+ on one line\].*text clamped 2 lines/);
     assert.match(findLine(reportLines, 'p.cut'), /text cut \d+/);
   });
 
