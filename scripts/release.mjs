@@ -87,7 +87,11 @@ async function getResponseErrorText(response) {
   const responseText = await response.text();
 
   try {
-    return JSON.parse(responseText).detail ?? responseText;
+    const problem = JSON.parse(responseText);
+    const errorMessages = (problem.errors ?? []).map((error) => error.message).filter(Boolean);
+    const detailText = problem.detail ?? responseText;
+
+    return errorMessages.length === 0 ? detailText : `${detailText}: ${errorMessages.join('; ')}`;
   } catch {
     return responseText;
   }
@@ -114,6 +118,12 @@ async function getRegistryToken() {
 }
 
 async function publishToRegistry() {
+  const packageSpecifier = `${packageJson.name}@${packageJson.version}`;
+  const publishedVersion = await runQuietCommand('npm', ['view', packageSpecifier, 'version']);
+  if (publishedVersion === '') {
+    exitWithMessage(`refusing to publish to the MCP Registry: ${packageSpecifier} is not on npm yet, run \`npm run release\` without --registry-only`);
+  }
+
   const registryToken = await getRegistryToken();
   const publishUrl = `${registryApiUrl}/publish`;
 
