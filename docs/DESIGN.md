@@ -369,6 +369,6 @@ Each fixture is a small static page with no external resources, and each has at 
 
 ## 9. Install
 
-See README. Publish with `npm run release` from a clean `main`: it runs `npm publish`, then `mcp-publisher publish` to the MCP Registry, downloading the publisher binary from github.com/modelcontextprotocol/registry releases when it is not on PATH. `--npm-only` and `--registry-only` run one of the two steps, which is how to finish a release after typing an npm one-time password by hand.
+See README. Publish with `npm run release` from a clean `main`: it runs `npm publish`, then publishes `server.json` to the MCP Registry API. It trades a GitHub token (`GITHUB_TOKEN`, or else `gh auth token`) for a short-lived registry token at `POST /v0.1/auth/github-at`, then sends `POST /v0.1/publish`. No browser login and no `mcp-publisher` binary. A personal `io.github.<user>` namespace needs no token scope. An org namespace needs `read:org` and org admin. `--dry-run` fetches the registry token but only prints the publish request. `--npm-only` and `--registry-only` run one of the two steps, which is how to finish a release after typing an npm one-time password by hand.
 
 The versions in `package.json`, `server.json` and `.claude-plugin/plugin.json` must match (`test/versions.test.ts`).
