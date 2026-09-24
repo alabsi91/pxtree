@@ -2,10 +2,11 @@
 import { constants, existsSync, statSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { createSession, format, getTargetUrl, readingGuideText, type Session } from './index.ts';
-import type { ColorScheme, FormatOptions, MeasureOptions, PageScript, ReportDetail, Viewport } from './types.ts';
+import { createSession, format, readingGuideText, type Session } from './index.ts';
+import { getFirstLine } from './node/errors.ts';
+import type { ColorScheme, FormatOptions, MeasureOptions, MeasureResult, PageScript, ReportDetail, Viewport } from './types.ts';
 
 const usageText = `usage: pxtree <url|host|file> [flags]
        pxtree guide    print the reading guide
@@ -117,15 +118,15 @@ function parsePositiveNumber(flagName: string, numberText: string, maximum: numb
 }
 
 /** A path without an extension gets `.png`. */
-function getScreenshotPath(screenshotText: string): string {
-  const expectedText = 'expected a .png, .jpg or .jpeg file';
+function parseScreenshotPath(screenshotText: string): string {
+  const expectedFileText = 'expected a .png, .jpg or .jpeg file';
 
   if (screenshotText.trim() === '') {
-    throw new UsageError(`bad --screenshot: empty path, ${expectedText}`);
+    throw new UsageError(`bad --screenshot: empty path, ${expectedFileText}`);
   }
 
   if (statSync(screenshotText, { throwIfNoEntry: false })?.isDirectory() === true) {
-    throw new UsageError(`bad --screenshot: ${screenshotText} is a directory, ${expectedText}`);
+    throw new UsageError(`bad --screenshot: ${screenshotText} is a directory, ${expectedFileText}`);
   }
 
   const extension = extname(screenshotText);
@@ -134,7 +135,7 @@ function getScreenshotPath(screenshotText: string): string {
   }
 
   if (!screenshotExtensions.includes(extension.toLowerCase())) {
-    throw new UsageError(`bad --screenshot: ${screenshotText}, ${expectedText}`);
+    throw new UsageError(`bad --screenshot: ${screenshotText}, ${expectedFileText}`);
   }
 
   return screenshotText;
@@ -166,9 +167,14 @@ async function createWritableDirectory(flagName: string, directoryPath: string):
   }
 }
 
-function getFirstLine(error: unknown): string {
-  return String(error instanceof Error ? error.message : error).split('\n')[0];
-}
+/** Bad flag values exit 1, load and state failures exit 2, and a browser failure exits 3. */
+const exitCodeByErrorKind: Record<NonNullable<MeasureResult['error']>['kind'], number> = {
+  input: 1,
+  load: 2,
+  script: 2,
+  measure: 2,
+  launch: 3,
+};
 
 /** Closes the browser on ctrl-c, SIGTERM or SIGHUP and exits quietly with 128 plus the signal number. */
 function exitOnSignals(session: Session): void {
@@ -285,15 +291,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
     );
   }
 
-  const targetUrl = getTargetUrl(targetArguments[0]);
-  const isFileTarget = URL.canParse(targetUrl) && new URL(targetUrl).protocol === 'file:';
-  const isDirectoryTarget = isFileTarget && statSync(fileURLToPath(targetUrl), { throwIfNoEntry: false })?.isDirectory() === true;
-  if (isDirectoryTarget) {
-    throw new UsageError(`target is a directory: ${targetArguments[0]}`);
-  }
-
   const reportDetail = parseReportDetail(flagValues.report);
-
   if (reportDetail === 'none' && !flagValues.aria && flagValues.screenshot === undefined) {
     throw new UsageError('--report none prints nothing without --aria or --screenshot');
   }
@@ -339,7 +337,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
   }
 
   if (flagValues.screenshot !== undefined) {
-    measureOptions.screenshotPath = getScreenshotPath(flagValues.screenshot);
+    measureOptions.screenshotPath = parseScreenshotPath(flagValues.screenshot);
     await createWritableDirectory('screenshot', dirname(measureOptions.screenshotPath));
   }
 
@@ -367,7 +365,7 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
       }
 
       console.error(result.error.message);
-      return result.error.kind === 'launch' ? 3 : 2;
+      return exitCodeByErrorKind[result.error.kind];
     }
 
     if (flagValues.out !== undefined) {
@@ -386,7 +384,6 @@ async function runMeasure(commandArguments: string[]): Promise<number> {
     }
 
     const hasNoElementMatch = result.runs.some((run) => run.page?.element?.matchedCount === 0);
-
     if (hasNoElementMatch) {
       console.error(`no element matches ${flagValues.element}`);
       return 2;

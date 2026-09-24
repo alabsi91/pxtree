@@ -8,7 +8,7 @@ pxtree measures how a webpage actually renders and prints it as compact text for
 
 Flags: `pxtree --help` and `pxtree guide` (the guide lives in `src/guide.ts`). API types: `src/types.ts`, exported from `src/index.ts`. MCP server: `src/mcp.ts`. Exit codes:
 
-- 0 measured (findings never change the exit code); 1 bad usage; 3 could not launch the browser.
+- 0 measured (findings never change the exit code); 1 bad usage or a bad flag value, like a selector that is not valid CSS or a `--wait` past the timeout; 3 could not launch the browser.
 - 2 could not load the target after one retry, the script threw, the measurement timed out, or the `--scroll` or `--element` selector matched nothing.
 - Stdout carries the report, stderr one error line (`could not load <url>: <reason>`, `script failed: <name>: <message>`, `measurement timed out after N ms`, `no element matches <selector>`).
 

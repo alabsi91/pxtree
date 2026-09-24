@@ -13,7 +13,7 @@ summary: 7 findings
   div.stat tops 0..6 across siblings: div.stats
   input.field starts 0..3 across siblings: form.fields
   12 wider than li.plan: li.plan.featured
-  72 taller than li.card: li.card
+  72 taller than li.card: li.card 3 of 3
   20 shorter than div.tile: div.tile.short
   gaps 16 16 24 16 between li.step: ul.steps
 body 1280x1182 [pad 24][gaps 24 24 24 24 16 16 …, free 24 at end]
@@ -28,17 +28,21 @@ body 1280x1182 [pad 24][gaps 24 24 24 24 16 16 …, free 24 at end]
       a.button "Choose" 168x40 @0,64 [pad 8 16][text 16/24][renders background]
     li.card 200x208 @432,0 [pad 16][gaps 8][renders background][!! 72 taller than li.card]
       h3 "Business" 168x24 [text 19/24]
-      p "A much longer…" 168x96 @0,32 [text 16/24, 4 lines]
+      p "A much longer…" 168x96 @0,32 [text 16/24, 4 lines, 444 on one line]
       a.button "Choose" 168x40 @0,136 [pad 8 16][text 16/24][renders background]
   ul.plans 1232x56 @0,232 [gaps across 16, free 588 at end]
-    li.plan "Monthly" 200x56 [pad 16][text 16/24][renders background] ×2
+    li.plan "Monthly" 200x56 [pad 16][text 16/24][renders background]
+    li.plan "Yearly" 200x56 @216,0 [pad 16][text 16/24][renders background]
     li.plan.featured "Lifetime" 212x56 @432,0 [pad 16][text 16/24][renders background][!! 12 wider than li.plan]
   ul.steps 1232x192 @0,312 [gaps 16 16 24 16][!! gaps 16 16 24 16 between li.step]
-    li.step "One" 1232x24 [text 16/24] ×2
+    li.step "One" 1232x24 [text 16/24]
+    li.step "Two" 1232x24 @0,40 [text 16/24]
     li.step.active "Three" 1232x24 @0,80 [text 16/24]
-    li.step "Four" 1232x24 @0,128 [text 16/24] ×2
+    li.step "Four" 1232x24 @0,128 [text 16/24]
+    li.step "Five" 1232x24 @0,168 [text 16/24]
   div.stats 1232x62 @0,528 [gaps across 16, free 456 at end][!! div.stat tops 0..6 across siblings]
-    div.stat "Revenue" 182x56 [pad 16][text 16/24][renders background] ×2
+    div.stat "Revenue" 182x56 [pad 16][text 16/24][renders background]
+    div.stat "Orders" 182x56 @198,0 [pad 16][text 16/24][renders background]
     div.stat.alert "Refunds" 182x56 @396,6 [pad 16][text 16/24][renders background]
     div.stat "Customers" 182x56 @594,0 [pad 16][text 16/24][renders background]
   article 1232x132 @0,614 [gaps 12]
@@ -49,7 +53,8 @@ body 1280x1182 [pad 24][gaps 24 24 24 24 16 16 …, free 24 at end]
   p.with-link "Read the first." 1232x24 @0,762 [text 16/24]
     a "guide" 39x17 @69,3 [text 16/24]
   form.fields 1232x108 @0,802 [gaps 8][!! input.field starts 0..3 across siblings]
-    input.field "Name" 208x21 [pad 1 2][text 13/15][renders background, border] ×2
+    input.field "Name" 208x21 [pad 1 2][text 13/15][renders background, border]
+    input.field "Email" 208x21 @0,29 [pad 1 2][text 13/15][renders background, border]
     input.field.nudged "Company" 208x21 @3,58 [pad 1 2][text 13/15][renders background, border]
     input.field "Phone" 208x21 @0,87 [pad 1 2][text 13/15][renders background, border]
   div.prices 300x72 @0,934

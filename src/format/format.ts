@@ -15,7 +15,7 @@ import type {
   TextInfo,
 } from '../types.ts';
 import { getContrastRatio, getPrintedContrastRatio } from '../findings/findings.ts';
-import { getBottom, getIntersection, getPaddingBox, getRight, getSiblingGroupNames, hasBoxInk, roundPixels } from '../findings/layout.ts';
+import { getBottom, getIntersection, getPaddingBox, getRight, getSiblingGroupNames, hasBoxInk, isScaled, roundPixels } from '../findings/layout.ts';
 import { createSnapshot, formatDiff } from './diff.ts';
 import { createNameCounts, formatSummary, getShortName } from './summary.ts';
 
@@ -52,7 +52,7 @@ interface TreeView {
 
 /**
  * Makes text that a page controls safe to print on a report line. Control characters and line separators go away.
- * Quotes, brackets and `›` turn into look-alikes, so the text cannot forge a tag, a finding or a tree line.
+ * Quotes, brackets and `›` turn into look-alikes. The text then cannot forge a tag, a finding or a tree line.
  */
 export function getPrintableText(pageText: string): string {
   return pageText
@@ -68,7 +68,7 @@ export function format(result: MeasureResult, options: FormatOptions = {}): stri
   const shouldShowColors = options.shouldShowColors ?? false;
   const reportDetail = options.report ?? 'tree';
   const pageTrees = result.runs.map((run) => (run.page === null || run.analysis === null ? null : createPageTree(run.page, run.analysis)));
-  const runReports = result.runs.map((run, runPosition) => {
+  const runReports = result.runs.map((_run, runPosition) => {
     const runReport = formatRunReport(result.runs, pageTrees, runPosition, reportDetail, shouldShowColors);
 
     return { keptLines: runReport.keptLines, cuttableLines: [...runReport.cuttableLines, ...formatAriaSection(result.runs, runPosition)] };
@@ -276,7 +276,6 @@ function getAriaSnapshotLines(heading: string, ariaSnapshot: string, visibility:
 function formatAriaSection(runs: RunResult[], runPosition: number): string[] {
   const run = runs[runPosition];
   const ariaSnapshots = run.ariaSnapshots;
-
   if (ariaSnapshots === null) {
     return [];
   }
@@ -516,7 +515,6 @@ function getFontFactTexts(run: RunResult): string[] {
   const factTexts = run.fontFallbacks.map((fontFallback) => `font "${fontFallback.requestedFamily}" not used, drew ${fontFallback.drawnFamily}`);
   const reportedFamilies = new Set(run.fontFallbacks.map((fontFallback) => fontFallback.requestedFamily.toLowerCase()));
   const failedFamilies = (run.page?.failedFontFamilies ?? []).filter((family) => !reportedFamilies.has(family.toLowerCase()));
-
   if (failedFamilies.length > 0) {
     factTexts.push(`font failed ${failedFamilies.join(', ')}`);
   }
@@ -690,16 +688,11 @@ function getTransformTag(node: MeasuredNode): string | null {
     transformParts.push(`rotated ${roundPixels(node.rotateDegrees)}°`);
   }
 
-  const isScaledX = Math.abs(node.scale.x - 1) >= 0.01;
-  const isScaledY = Math.abs(node.scale.y - 1) >= 0.01;
-  const isEvenScale = Math.abs(node.scale.x - node.scale.y) < 0.01;
+  if (isScaled(node)) {
+    const isEvenScale = Math.abs(node.scale.x - node.scale.y) < 0.01;
+    const scaleText = isEvenScale ? node.scale.x.toFixed(2) : `${node.scale.x.toFixed(2)}x${node.scale.y.toFixed(2)}`;
 
-  if ((isScaledX || isScaledY) && isEvenScale) {
-    transformParts.push(`scaled ${node.scale.x.toFixed(2)}`);
-  }
-
-  if ((isScaledX || isScaledY) && !isEvenScale) {
-    transformParts.push(`scaled ${node.scale.x.toFixed(2)}x${node.scale.y.toFixed(2)}`);
+    transformParts.push(`scaled ${scaleText}`);
   }
 
   if (node.flippedAxis !== null) {

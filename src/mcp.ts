@@ -24,7 +24,6 @@ const serverInstructions = `pxtree measures how a webpage actually renders and p
 const maxViewportSide = 10000;
 const maxViewportCount = 10;
 const maxTimeoutMs = 120000;
-
 const maxScrollStopCount = 10;
 const exitCodeBySignal = { SIGINT: 130, SIGTERM: 143, SIGHUP: 129 };
 
@@ -93,7 +92,7 @@ const measureInputSchema = {
   aria: booleanSchema.optional().describe("A boolean: add Playwright's aria snapshot of the page, or of each element match, after the report"),
 };
 
-/** Strict, so a misspelled key like `viewport` fails naming the key instead of being ignored. */
+/** Strict. A misspelled key like `viewport` fails and names the key instead of being ignored. */
 const measureInputObjectSchema = z.object(measureInputSchema).strict();
 
 type MeasureInput = z.infer<typeof measureInputObjectSchema>;

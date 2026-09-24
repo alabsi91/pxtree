@@ -126,7 +126,7 @@ A finding is a measurement past a threshold. The tool never guesses intent, so a
 - Coverage is checked only inside the viewport. Scroll to check another region. Closed declarative shadow roots, iframes and svg insides are not walked.
 - Pseudo-element ink sits on the element's box. Clip paths count as their border box. Border radius is ignored. Vertical writing modes print physical positions. A rotated or scaled box gets no overlap, centering, width or height findings inside.
 - Desktop emulation: (hover: hover) and (pointer: fine) match, no touch. Scrollbars take 0 px (overlay).
-- Time-based animations are finished (infinite ones reset to 0). Scroll-driven ones, view-timeline reveals included, stay where the scroll left them. \`--scroll '<selector>'\` brings one fully in.
+- Time-based animations are finished (infinite ones reset to 0). Scroll-driven ones, view-timeline reveals included, stay where the scroll left them. \`--scroll '<selector>'\` brings one fully in. To inspect a frame, pause the animation at that time in the script and pxtree leaves it there.
 - Waits for DOMContentLoaded, then up to 2 s for load and 1.5 s for a quiet network (not for files). Use --wait for slower pages. Page text prints quotes as ', brackets as ( ) and › as >, so it cannot fake a tag or finding.
 `;
 

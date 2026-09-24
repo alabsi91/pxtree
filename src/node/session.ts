@@ -4,7 +4,7 @@ import { extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { Script } from 'node:vm';
-import { chromium, type Browser, type BrowserContext, type Frame, type Page } from 'playwright-core';
+import { chromium, type Browser, type BrowserContext, type Frame, type Page, type Request } from 'playwright-core';
 import { analyze } from '../findings/findings.ts';
 import { createSnapshot } from '../format/diff.ts';
 import { getPrintableText, getScreenshotClip } from '../format/format.ts';
@@ -27,6 +27,7 @@ import type {
   Viewport,
 } from '../types.ts';
 import { getDefaultCacheDirectory, getSnapshotKey, readSnapshot, writeSnapshot } from './cache.ts';
+import { getFirstLine } from './errors.ts';
 
 type PxtreeGlobal = typeof globalThis & { __pxtree: PxtreeInPage };
 
@@ -48,7 +49,7 @@ interface LoadFacts {
   isPageUnchangedByScript: boolean;
 }
 
-type MeasureErrorKind = 'launch' | 'load' | 'script' | 'measure';
+type MeasureErrorKind = NonNullable<MeasureResult['error']>['kind'];
 
 class MeasureError extends Error {
   kind: MeasureErrorKind;
@@ -57,12 +58,6 @@ class MeasureError extends Error {
     super(message);
     this.kind = kind;
   }
-}
-
-function getFirstLine(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-
-  return message.split('\n')[0].trim();
 }
 
 function getPlaywrightVersion(): string {
@@ -96,7 +91,6 @@ function getLoadFailureMessage(error: unknown, url: string, target: string): str
 
   const trimmedTarget = target.trim();
   const isBareTarget = url === `http://${trimmedTarget}`;
-
   if (isBareTarget && reason.includes('ERR_NAME_NOT_RESOLVED')) {
     return `could not load ${trimmedTarget}: no file at that path and no host named ${new URL(url).hostname}`;
   }
@@ -127,15 +121,15 @@ export function getTargetUrl(target: string): string {
 /** A target, wait or timeout that cannot work, found before the browser starts. null when there is none. */
 function getInputError(target: string, url: string, wait: number | string | undefined, timeoutMs: number): MeasureError | null {
   if (target.trim() === '') {
-    return new MeasureError('load', 'target is empty');
+    return new MeasureError('input', 'target is empty');
   }
 
   if (isDirectoryTargetUrl(url)) {
-    return new MeasureError('load', `target is a directory: ${target.trim()}`);
+    return new MeasureError('input', `target is a directory: ${target.trim()}`);
   }
 
   if (typeof wait === 'number' && wait > timeoutMs) {
-    return new MeasureError('script', `wait failed: ${wait} ms is longer than the timeout of ${timeoutMs} ms`);
+    return new MeasureError('input', `wait failed: ${wait} ms is longer than the timeout of ${timeoutMs} ms`);
   }
 
   return null;
@@ -147,13 +141,12 @@ function getUniqueViewports(viewports: Viewport[]): Viewport[] {
   return [...viewportBySize.values()];
 }
 
-/** True when a target URL is a file URL that names a directory. */
-export function isDirectoryTargetUrl(targetUrl: string): boolean {
+function isDirectoryTargetUrl(targetUrl: string): boolean {
   return isFileUrl(targetUrl) && statSync(fileURLToPath(targetUrl), { throwIfNoEntry: false })?.isDirectory() === true;
 }
 
 /** The URL loading ended on, or null when it is the target. A trailing slash and a default port do not count. */
-export function getRedirectedUrl(targetUrl: string, finalUrl: string): string | null {
+function getRedirectedUrl(targetUrl: string, finalUrl: string): string | null {
   const getComparableUrl = (url: string) => {
     const parsedUrl = new URL(url);
     parsedUrl.pathname = parsedUrl.pathname.replace(/\/+$/, '');
@@ -191,8 +184,8 @@ function getScreenshotPath(basePath: string, viewport: Viewport, colorScheme: Co
   return `${pathWithoutExtension}-${viewport.width}x${viewport.height}-${colorScheme}${scrollStopSuffix}${extension}`;
 }
 
-/** Splits at commas outside parentheses, brackets and quotes, so a selector like `:is(h2, h3)` stays one item. */
-export function splitTopLevelCommas(listText: string): string[] {
+/** Splits at commas outside parentheses, brackets and quotes. A selector like `:is(h2, h3)` stays one item. */
+function splitTopLevelCommas(listText: string): string[] {
   const listItems: string[] = [];
   let itemStart = 0;
   let nestingDepth = 0;
@@ -351,7 +344,7 @@ async function loadTarget(page: Page, url: string, target: string, timeoutMs: nu
   let lastError: unknown = null;
   const loadDeadline = Date.now() + timeoutMs;
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attemptIndex = 0; attemptIndex < 2; attemptIndex++) {
     const remainingMs = loadDeadline - Date.now();
     if (remainingMs <= 0) break;
 
@@ -377,16 +370,17 @@ interface NavigationTracker {
 
 function createNavigationTracker(page: Page): NavigationTracker {
   const navigationTracker: NavigationTracker = { navigationCount: 0, hasPendingNavigation: false };
+  const isMainFrameNavigation = (request: Request) => request.isNavigationRequest() && request.frame() === page.mainFrame();
 
   page.on('request', (request) => {
-    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+    if (isMainFrameNavigation(request)) {
       navigationTracker.navigationCount++;
       navigationTracker.hasPendingNavigation = true;
     }
   });
 
   page.on('requestfailed', (request) => {
-    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+    if (isMainFrameNavigation(request)) {
       navigationTracker.hasPendingNavigation = false;
     }
   });
@@ -405,18 +399,18 @@ function createNavigationTracker(page: Page): NavigationTracker {
  * The caller closes the context after the error. That also rejects the page call that still hangs.
  */
 async function runPhase<T>(phaseName: string, phaseTimeoutMs: number, runOperation: () => Promise<T>): Promise<T> {
-  const operation = runOperation();
+  const operationPromise = runOperation();
   let timeoutHandle: NodeJS.Timeout | undefined;
 
-  operation.catch(() => {});
+  operationPromise.catch(() => {});
 
-  const timeout = new Promise<never>((_resolve, reject) => {
+  const timeoutPromise = new Promise<never>((_resolve, reject) => {
     const timeoutMessage = `measurement timed out after ${Math.round(phaseTimeoutMs)} ms during ${phaseName}`;
     timeoutHandle = setTimeout(() => reject(new MeasureError('measure', timeoutMessage)), phaseTimeoutMs);
   });
 
   try {
-    return await Promise.race([operation, timeout]);
+    return await Promise.race([operationPromise, timeoutPromise]);
   } finally {
     clearTimeout(timeoutHandle);
   }
@@ -442,30 +436,30 @@ function getInvalidSelectorMessage(optionName: SelectorOptionName, selector: str
   return `${optionName} failed: ${printedSelector} is not ${acceptedValueTextByOptionName[optionName]}`;
 }
 
-/** Checks the element, scroll and wait selectors on the blank page before loading, so a bad selector fails fast with one line. */
+/** Checks the element, scroll and wait selectors on the blank page before loading. A bad selector then fails fast with one line. */
 async function checkSelectors(
   page: Page,
   elementSelector: string | undefined,
   scrollStops: ScrollStop[],
   wait: number | string | undefined,
 ): Promise<void> {
-  const selectorsByOptionName: Array<[SelectorOptionName, string]> = [];
+  const optionNameAndSelectorPairs: Array<[SelectorOptionName, string]> = [];
 
   if (elementSelector !== undefined) {
-    selectorsByOptionName.push(['element', elementSelector]);
+    optionNameAndSelectorPairs.push(['element', elementSelector]);
   }
 
   for (const scrollStop of scrollStops) {
     if (typeof scrollStop === 'string' && scrollStop !== 'end') {
-      selectorsByOptionName.push(['scroll', scrollStop]);
+      optionNameAndSelectorPairs.push(['scroll', scrollStop]);
     }
   }
 
   if (typeof wait === 'string') {
-    selectorsByOptionName.push(['wait', wait]);
+    optionNameAndSelectorPairs.push(['wait', wait]);
   }
 
-  for (const [optionName, selector] of selectorsByOptionName) {
+  for (const [optionName, selector] of optionNameAndSelectorPairs) {
     const isValidSelector = await page.evaluate((checkedSelector) => {
       try {
         document.querySelector(checkedSelector);
@@ -476,7 +470,7 @@ async function checkSelectors(
     }, selector);
 
     if (!isValidSelector) {
-      throw new MeasureError('script', getInvalidSelectorMessage(optionName, selector));
+      throw new MeasureError('input', getInvalidSelectorMessage(optionName, selector));
     }
   }
 }
@@ -567,9 +561,9 @@ async function getFontFallbacks(page: Page): Promise<FontFallback[]> {
 
       const requestedFamily = getPrintableText(fontRequest.requestedFamily);
       const drawnFamily = getPrintableText(mainFont.familyName);
-      const isKnown = fontFallbacks.some((fallback) => fallback.requestedFamily === requestedFamily && fallback.drawnFamily === drawnFamily);
+      const isKnownFallback = fontFallbacks.some((fallback) => fallback.requestedFamily === requestedFamily && fallback.drawnFamily === drawnFamily);
 
-      if (!isKnown) {
+      if (!isKnownFallback) {
         fontFallbacks.push({ requestedFamily, drawnFamily });
       }
     }
@@ -581,9 +575,9 @@ async function getFontFallbacks(page: Page): Promise<FontFallback[]> {
 }
 
 async function settlePage(page: Page): Promise<SettleReport> {
-  const settle = await page.evaluate((maxWaitMs) => (globalThis as PxtreeGlobal).__pxtree.settlePage({ maxWaitMs }), settleMaxWaitMs);
+  const settleReport = await page.evaluate((maxWaitMs) => (globalThis as PxtreeGlobal).__pxtree.settlePage({ maxWaitMs }), settleMaxWaitMs);
 
-  return { stillMovingName: settle.stillMovingName === null ? null : getPrintableText(settle.stillMovingName) };
+  return { stillMovingName: settleReport.stillMovingName === null ? null : getPrintableText(settleReport.stillMovingName) };
 }
 
 async function scrollPage(page: Page, scrollStop: ScrollStop): Promise<void> {
@@ -624,10 +618,10 @@ async function runPageScript(page: Page, pageScript: PageScript): Promise<void> 
   }
 }
 
-function getFrameText(page: Page): string {
-  const frameCount = page.frames().length - 1;
+function getUnsearchedFrameText(page: Page): string {
+  const childFrameCount = page.frames().length - 1;
 
-  return frameCount === 0 ? '' : `, ${frameCount} ${frameCount === 1 ? 'frame is' : 'frames are'} not searched`;
+  return childFrameCount === 0 ? '' : `, ${childFrameCount} ${childFrameCount === 1 ? 'frame is' : 'frames are'} not searched`;
 }
 
 async function waitAfterScript(page: Page, wait: number | string, timeoutMs: number): Promise<void> {
@@ -640,7 +634,7 @@ async function waitAfterScript(page: Page, wait: number | string, timeoutMs: num
     await page.waitForSelector(wait, { state: 'visible', timeout: timeoutMs });
   } catch (error) {
     const isTimeout = error instanceof Error && error.name === 'TimeoutError';
-    const reasonText = isTimeout ? `no visible element matches ${wait} after ${timeoutMs} ms${getFrameText(page)}` : getFirstLine(error);
+    const reasonText = isTimeout ? `no visible element matches ${wait} after ${timeoutMs} ms${getUnsearchedFrameText(page)}` : getFirstLine(error);
 
     throw new MeasureError('script', `wait failed: ${reasonText}`);
   }
@@ -839,7 +833,7 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
       scrollStopPosition: number,
       colorScheme: ColorScheme,
       loadFacts: LoadFacts,
-      settle: SettleReport,
+      settleReport: SettleReport,
     ): Promise<RunResult> {
       const scrollStop = scrollStops[scrollStopPosition];
       const measurement = shouldMeasurePage ? await measureInPage(page, measurePageOptions) : null;
@@ -863,7 +857,7 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
         colorScheme,
         scrollStop,
         status: loadFacts.status,
-        settle,
+        settle: settleReport,
         devicePixelRatio,
         page: null,
         analysis: null,
@@ -903,24 +897,26 @@ export async function createSession(sessionOptions: SessionOptions = {}): Promis
         }
       });
 
-      const firstSettle = await runPhase('scroll', timeoutMs, async () => {
+      const firstSettleReport = await runPhase('scroll', timeoutMs, async () => {
         await scrollPage(page, scrollStops[scrollStopPosition]);
 
         return settlePage(page);
       });
 
       const scrollStopRuns = [
-        await runPhase('measure', timeoutMs, () => measureRun(page, viewport, scrollStopPosition, colorSchemes[0], loadFacts, firstSettle)),
+        await runPhase('measure', timeoutMs, () => measureRun(page, viewport, scrollStopPosition, colorSchemes[0], loadFacts, firstSettleReport)),
       ];
 
       for (const colorScheme of colorSchemes.slice(1)) {
-        const settle = await runPhase('settle', timeoutMs, async () => {
+        const settleReport = await runPhase('settle', timeoutMs, async () => {
           await page.emulateMedia({ colorScheme });
 
           return settlePage(page);
         });
 
-        scrollStopRuns.push(await runPhase('measure', timeoutMs, () => measureRun(page, viewport, scrollStopPosition, colorScheme, loadFacts, settle)));
+        scrollStopRuns.push(
+          await runPhase('measure', timeoutMs, () => measureRun(page, viewport, scrollStopPosition, colorScheme, loadFacts, settleReport)),
+        );
       }
 
       return scrollStopRuns;

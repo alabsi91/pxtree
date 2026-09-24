@@ -365,7 +365,7 @@ test('a numeric wait longer than the timeout fails naming the wait, a selector w
   const selectorResult = await session.measure(getFixtureUrl('state'), { cacheDirectory: null, timeoutMs: 2000, wait: '#never' });
   const selectorElapsedMs = Date.now() - selectorStartTime;
 
-  assert.deepEqual(numberResult.error, { kind: 'script', message: 'wait failed: 1500 ms is longer than the timeout of 1000 ms' });
+  assert.deepEqual(numberResult.error, { kind: 'input', message: 'wait failed: 1500 ms is longer than the timeout of 1000 ms' });
   assert.ok(numberElapsedMs < 500, `took ${numberElapsedMs} ms`);
   assert.deepEqual(selectorResult.error, { kind: 'script', message: 'wait failed: no visible element matches #never after 2000 ms' });
   assert.ok(selectorElapsedMs >= 2000, `took ${selectorElapsedMs} ms`);
@@ -394,8 +394,8 @@ test('an element selector that is not valid CSS fails with one line before loadi
   const bracketResult = await session.measure(getFixtureUrl('state'), { cacheDirectory: null, elementSelector: 'div[' });
   const emptyResult = await session.measure(getFixtureUrl('state'), { cacheDirectory: null, elementSelector: '', shouldCaptureAriaSnapshot: true });
 
-  assert.deepEqual(bracketResult.error, { kind: 'script', message: 'element failed: div[ is not a valid selector' });
-  assert.deepEqual(emptyResult.error, { kind: 'script', message: "element failed: '' is not a valid selector" });
+  assert.deepEqual(bracketResult.error, { kind: 'input', message: 'element failed: div[ is not a valid selector' });
+  assert.deepEqual(emptyResult.error, { kind: 'input', message: "element failed: '' is not a valid selector" });
 });
 
 test('the first stop runs the script before it scrolls, so a stop can target what the script adds', async () => {
@@ -480,8 +480,8 @@ test('an empty target or a directory fails with one line, and repeated viewports
     shouldMeasurePage: false,
   });
 
-  assert.deepEqual(emptyResult.error, { kind: 'load', message: 'target is empty' });
-  assert.deepEqual(directoryResult.error, { kind: 'load', message: 'target is a directory: test/fixtures' });
+  assert.deepEqual(emptyResult.error, { kind: 'input', message: 'target is empty' });
+  assert.deepEqual(directoryResult.error, { kind: 'input', message: 'target is a directory: test/fixtures' });
   assert.equal(repeatedResult.runs.length, 1);
 });
 
@@ -607,4 +607,15 @@ test('animations: the page settles with no element still moving', async () => {
   const result = await measureFixture(session, 'animations');
 
   assert.equal(result.runs[0].settle.stillMovingName, null);
+});
+
+test('animations: an animation that the script pauses keeps its frame through settling', async () => {
+  const pauseScript = `await page.evaluate(() => {
+    const timeBasedAnimations = document.getAnimations().filter((animation) => animation.timeline instanceof DocumentTimeline);
+    timeBasedAnimations.forEach((animation) => { animation.pause(); animation.currentTime = 500; });
+  })`;
+  const result = await measureFixture(session, 'animations', { script: pauseScript });
+  const spinnerNode = result.runs[0].page?.nodes.find((node) => node.name === 'div.spinner');
+
+  assert.equal(spinnerNode?.rotateDegrees, 180);
 });

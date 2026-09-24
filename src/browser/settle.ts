@@ -20,14 +20,18 @@ async function waitForFrames(frameCount: number): Promise<void> {
   }
 }
 
-/** Finishes time-based animations and parks infinite ones at 0. Scroll-driven ones stay where the scroll put them. */
+/**
+ * Finishes time-based animations and parks infinite ones at 0. Scroll-driven ones stay where the scroll put them.
+ * Paused ones stay at the frame where the page or the script paused them.
+ */
 function settleNewAnimations(settledAnimations: WeakSet<Animation>): void {
   for (const animation of getAllAnimations(getAllShadowRoots())) {
     if (settledAnimations.has(animation)) continue;
 
     settledAnimations.add(animation);
 
-    if (!(animation.timeline instanceof DocumentTimeline)) continue;
+    const isTimeBased = animation.timeline instanceof DocumentTimeline;
+    if (!isTimeBased || animation.playState === 'paused') continue;
 
     try {
       const endTime = animation.effect?.getComputedTiming().endTime ?? 0;

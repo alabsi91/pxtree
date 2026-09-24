@@ -632,7 +632,9 @@ function getOverlapsFindings(context: AnalysisContext): Finding[] {
       activeChildren.push(child);
 
       if (activeChildren.length > maxActiveOverlapCandidates) {
-        const firstEndingChild = activeChildren.reduce((first, active) => (getRight(active.rect) < getRight(first.rect) ? active : first));
+        const firstEndingChild = activeChildren.reduce((firstEndingSoFar, activeChild) =>
+          getRight(activeChild.rect) < getRight(firstEndingSoFar.rect) ? activeChild : firstEndingSoFar,
+        );
         activeChildren.splice(activeChildren.indexOf(firstEndingChild), 1);
       }
     }
@@ -797,7 +799,6 @@ function getSiblingGroupColumns(childrenByGroupName: Map<string, MeasuredNode[]>
 
     const childrenByTop = [...sameGroupChildren].sort((first, second) => first.rect.y - second.rect.y);
     const isStacked = childrenByTop.slice(1).every((child, position) => child.rect.y >= getBottom(childrenByTop[position].rect) - 1);
-
     if (isStacked) {
       siblingGroupColumns.push(sameGroupChildren);
     }
@@ -847,7 +848,7 @@ function hasSpreadTops(nodes: MeasuredNode[], indexes: number[], referenceTops: 
   return [topSpread, centerSpread, bottomSpread].every((spread) => spread.max - spread.min >= 2);
 }
 
-/** `min..max` of the printed `@x,y` values, so the numbers can be found in the tree. */
+/** `min..max` of the printed `@x,y` values. The numbers can then be found in the tree. */
 function getPrintedRangeText(printedValues: number[]): string {
   const roundedValues = printedValues.map(roundPixels);
 
@@ -997,9 +998,9 @@ function getWiderFindings(context: AnalysisContext, row: MeasuredNode[]): Findin
     const extraWidth = member.rect.width - sharedWidth;
     const groupName = context.siblingGroupNames[member.index];
 
-    if (extraWidth < 2 || isTransformed(member)) continue;
-
-    findings.push(createFinding({ kind: 'wider', nodeIndex: member.index, template: `{n} wider than ${groupName}`, amount: extraWidth }));
+    if (extraWidth >= 2 && !isTransformed(member)) {
+      findings.push(createFinding({ kind: 'wider', nodeIndex: member.index, template: `{n} wider than ${groupName}`, amount: extraWidth }));
+    }
   }
 
   return findings;
@@ -1144,7 +1145,7 @@ export function getContrastRatio(firstHexColor: string, secondHexColor: string):
   return (Math.max(firstLuminance, secondLuminance) + 0.05) / (Math.min(firstLuminance, secondLuminance) + 0.05);
 }
 
-/** One decimal, rounded down, so a failing ratio never prints as the passing value. */
+/** One decimal, rounded down. A failing ratio then never prints as the passing value. */
 export function getPrintedContrastRatio(ratio: number): string {
   return (Math.floor(ratio * 10) / 10).toFixed(1);
 }
@@ -1222,7 +1223,7 @@ function createTargetGrid(targets: MeasuredNode[]): Map<string, MeasuredNode[]> 
 /**
  * WCAG 2.5.8 spacing. A 24 px circle on the target's center touches no other target and no other undersized target's circle.
  * A target that is not inert ignores inert neighbors, because nothing can hit them. An inert target, behind a modal,
- * still compares with its own neighbors, so an element match there prints its finding.
+ * still compares with its own neighbors. An element match there then prints its finding.
  */
 function isSpacedTarget(target: MeasuredNode, targetsByCell: Map<string, MeasuredNode[]>, undersizedIndexes: Set<number>): boolean {
   const center = getCenter(target.rect);
@@ -1454,7 +1455,7 @@ function isInsideAnimation(page: PageMeasurement, nodeIndex: number): boolean {
   return false;
 }
 
-/** Inert behind an open modal, and not inside an element match. An element match is an explicit request, so it keeps its findings. */
+/** Inert behind an open modal, and not inside an element match. An element match is an explicit request and keeps its findings. */
 function isHiddenBehindModal(page: PageMeasurement, nodeIndex: number): boolean {
   const node = page.nodes[nodeIndex];
   if (page.modalIndex === null || !node.isInert) {

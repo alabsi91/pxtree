@@ -120,9 +120,9 @@ test('--screenshot with several element matches captures the viewport and says w
   assert.ok(output.stdout.split('\n')[0].endsWith(` screenshot ${screenshotPath} 1280x800 (viewport, selector matched 2)`), output.stdout);
 });
 
-test('an --element that is not valid CSS, or empty, exits 2 with one line', async () => {
-  assertSingleErrorLine(await runCli([stateFixturePath, '--no-diff', '--element', 'div[']), 2, 'element failed: div[ is not a valid selector');
-  assertSingleErrorLine(await runCli([stateFixturePath, '--no-diff', '--element', '', '--aria']), 2, "element failed: '' is not a valid selector");
+test('an --element that is not valid CSS, or empty, exits 1 with one line', async () => {
+  assertSingleErrorLine(await runCli([stateFixturePath, '--no-diff', '--element', 'div[']), 1, 'element failed: div[ is not a valid selector');
+  assertSingleErrorLine(await runCli([stateFixturePath, '--no-diff', '--element', '', '--aria']), 1, "element failed: '' is not a valid selector");
 });
 
 test('a missing script file exits 1', async () => {
@@ -261,8 +261,10 @@ test('--scroll takes a comma list of stops, and a comma inside a selector stays 
   );
 });
 
-test('an empty --scroll stop exits 2 and says what a stop may be', async () => {
-  assertSingleErrorLine(await runCli([stateFixturePath, '--scroll', '0,,end']), 2, "scroll failed: '' is not a y offset of 0 or more, end, or a selector");
+test('an empty --scroll stop, a bad --wait selector or a --wait past the timeout exits 1 with one line', async () => {
+  assertSingleErrorLine(await runCli([stateFixturePath, '--scroll', '0,,end']), 1, "scroll failed: '' is not a y offset of 0 or more, end, or a selector");
+  assertSingleErrorLine(await runCli([stateFixturePath, '--wait', 'div[']), 1, 'wait failed: div[ is not milliseconds or a valid selector');
+  assertSingleErrorLine(await runCli([stateFixturePath, '--wait', '5000', '--timeout', '1000']), 1, 'wait failed: 5000 ms is longer than the timeout of 1000 ms');
 });
 
 test('out of range numbers exit 1 with one line before the browser starts', async () => {

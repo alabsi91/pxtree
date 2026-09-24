@@ -122,7 +122,7 @@ interface WalkState {
 
 // ---------- flat tree ----------
 
-export function getShadowRoot(element: Element): ShadowRoot | null {
+function getShadowRoot(element: Element): ShadowRoot | null {
   return element.shadowRoot ?? closedShadowRoots.get(element) ?? null;
 }
 
@@ -321,7 +321,7 @@ function getVisibility(
   }
 
   const isContentHidden = style.contentVisibility === 'hidden';
-  const isContentAutoSkipped = style.contentVisibility === 'auto' && isContentAutoSkippedAt(flatEntries);
+  const isContentAutoSkipped = style.contentVisibility === 'auto' && isChildContentSkipped(flatEntries);
   if (isContentHidden || isContentAutoSkipped) {
     return { visibility: 'content-skipped', clippedOutByIndex: null };
   }
@@ -360,7 +360,7 @@ function getVisibility(
 }
 
 /** Asks the first child that has a box. A child without one, like a script, cannot tell whether the content is skipped. */
-function isContentAutoSkippedAt(flatEntries: FlatEntry[]): boolean {
+function isChildContentSkipped(flatEntries: FlatEntry[]): boolean {
   for (const entry of flatEntries) {
     if (entry.kind === 'element' && entry.element.checkVisibility()) {
       return !entry.element.checkVisibility({ contentVisibilityAuto: true });
@@ -425,9 +425,9 @@ export function getNormalizedClassNames(element: Element): string[] {
     if (!allowedNamePattern.test(className)) continue;
 
     const normalizedClassName = stripGeneratedSuffix(className);
-    if (normalizedClassName === '' || isHashClassName(normalizedClassName)) continue;
-
-    normalizedClassNames.push(normalizedClassName);
+    if (normalizedClassName !== '' && !isHashClassName(normalizedClassName)) {
+      normalizedClassNames.push(normalizedClassName);
+    }
   }
 
   return normalizedClassNames;
@@ -464,20 +464,20 @@ export function createClassFrequency(classNameLists: string[][]): Map<string, nu
 
 const maximumIdentityClassCount = 8;
 
-function getNameId(element: Element): string | null {
+function getNameableId(element: Element): string | null {
   const id = element.id;
   const isNameableId = id !== '' && allowedNamePattern.test(id) && !/\d{3,}/.test(id);
 
   return isNameableId ? id : null;
 }
 
-export function createNodeIdentity(element: Element, classNames: string[]): NodeIdentity {
-  return { tag: element.localName, id: getNameId(element), classNames: classNames.slice(0, maximumIdentityClassCount) };
+function createNodeIdentity(element: Element, classNames: string[]): NodeIdentity {
+  return { tag: element.localName, id: getNameableId(element), classNames: classNames.slice(0, maximumIdentityClassCount) };
 }
 
 export function createNodeName(element: Element, classNames: string[], classFrequency: Map<string, number>): string {
   let name = element.localName;
-  const id = getNameId(element);
+  const id = getNameableId(element);
   if (id !== null) {
     name += '#' + id;
   }
@@ -1026,7 +1026,7 @@ function getEffectiveClip(box: Box, clipEntries: ClipEntry[]): MeasuredNode['cli
 /**
  * The entry that cuts the most off the box on one axis, else the innermost entry on that axis. null for the viewport or no entry.
  * Of entries that cut the same amount, the innermost wins, because nothing outside it can bring back what it cuts.
- * Pass the reachable entries, so that a clipper outside a scroller on that axis never wins.
+ * Pass the reachable entries. A clipper outside a scroller on that axis then never wins.
  */
 function getAxisClipperIndex(boxStart: number, boxEnd: number, clipEntries: ClipEntry[], axis: 'x' | 'y'): number | null {
   const axisEntries = clipEntries.filter((entry) => (axis === 'x' ? entry.xKind : entry.yKind) !== 'none');

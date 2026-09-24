@@ -404,7 +404,7 @@ export interface MeasureOptions {
   scroll?: ScrollStop | ScrollStop[];
   /**
    * Inline code, as the body of async (page) => {} or as a whole function like `async (page) => {}`, or a function.
-   * It is trusted code: it runs in Node with the Playwright page and every right of the process.
+   * It is trusted code. It runs in Node with the Playwright page and every right of the process.
    */
   script?: string | PageScript;
   /** Text that identifies the script for the cache key. The CLI passes the file content. Default is the script when it is a string. */
@@ -495,8 +495,11 @@ export interface MeasureResult {
   target: string;
   /** One run per viewport, scroll stop and color scheme, in that nesting order. Runs finished before an error are kept. */
   runs: RunResult[];
-  /** A load, launch, script or measurement failure. null when every run finished. */
-  error: { kind: 'load' | 'launch' | 'script' | 'measure'; message: string } | null;
+  /**
+   * A failure, or null when every run finished. 'input' is an option value that cannot work, like a selector that is
+   * not valid CSS. It is found before the page loads. The other kinds are 'load', 'launch', 'script' and 'measure'.
+   */
+  error: { kind: 'input' | 'load' | 'launch' | 'script' | 'measure'; message: string } | null;
 }
 
 export interface FormatOptions {

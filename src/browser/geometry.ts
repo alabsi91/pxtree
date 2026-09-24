@@ -385,7 +385,7 @@ export function isFullInsetClipPath(clipPath: string): boolean {
 
 /**
  * The entries without the axes that a scroll container further in scrolls. Scrolling brings content into that
- * scroller's box, so a clipper outside it does not decide what the content can reach on that axis.
+ * scroller's box. A clipper outside it then does not decide what the content can reach on that axis.
  */
 export function getReachableClipEntries(entries: ClipEntry[]): ClipEntry[] {
   const innermostScrollerPositionX = entries.findLastIndex((entry) => entry.xKind === 'scroll');
